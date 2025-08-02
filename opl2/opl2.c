@@ -1,13 +1,12 @@
 /*
 ** OPL2 emulator based on Opal (OPL3), from Reality Adlib Tracker v2.0a.
-** It has been ported from C++ to C, with OPL3 stuff removed (ST3 uses OPL2).
-** Some other small changes were also made.
+** Opal was released under the public domain, which means I can safely set
+** a BSD 3-Clause license on this.
 **
-** I couldn't find ANY information about a license on this code anywhere, but
-** as the Opal code is included with RAD2.0A for use in your own productions,
-** it's likely that its OK to release this modified version under BSD 3-Clause.
-** 
-** Please contact me if this is NOT the case!
+** Some notes about this version of Opal:
+**  It has been ported from C++ to C, with OPL3 stuff removed (ST3 uses OPL2).
+**  Some other small changes were also made, like adding some bugfixes from
+**  the Opal library OpenMPT uses (also BSD 3-Clause).
 */
 
 #include <stdio.h>
