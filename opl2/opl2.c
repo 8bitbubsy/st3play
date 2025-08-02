@@ -7,7 +7,7 @@
 ** as the Opal code is included with RAD2.0A for use in your own productions,
 ** it's likely that its OK to release this modified version under BSD 3-Clause.
 ** 
-** Please contact wme if this is NOT the case!
+** Please contact me if this is NOT the case!
 */
 
 #include <stdio.h>
