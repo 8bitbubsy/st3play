@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="audiodrivers">
+      <UniqueIdentifier>{2c874cd2-a32c-4a32-80eb-a2c947fb1a85}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="audiodrivers\winmm">
+      <UniqueIdentifier>{66a9a674-2f26-47ef-955c-ef354abaa597}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="opl2">
+      <UniqueIdentifier>{e5c1d7b9-c1f8-4ba8-baea-31c0914ea1dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="mixer">
+      <UniqueIdentifier>{4ebc433c-b4e5-4b30-9932-e5f5063fe710}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="st3play">
+      <UniqueIdentifier>{236da0ba-418d-4aa4-a71b-cb5bc7d366c2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\audiodrivers\winmm\winmm.c">
+      <Filter>audiodrivers\winmm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mixer\gus.c">
+      <Filter>mixer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mixer\sbpro.c">
+      <Filter>mixer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\opl2\opl2.c">
+      <Filter>opl2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\posix.c">
+      <Filter>st3play</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\st3play.c">
+      <Filter>st3play</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\dig.c" />
+    <ClCompile Include="..\..\dig_gus.c" />
+    <ClCompile Include="..\..\digadl.c" />
+    <ClCompile Include="..\..\digamg.c" />
+    <ClCompile Include="..\..\digcmd.c" />
+    <ClCompile Include="..\..\digdata.c" />
+    <ClCompile Include="..\..\digread.c" />
+    <ClCompile Include="..\..\load.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\audiodrivers\winmm\winmm.h">
+      <Filter>audiodrivers\winmm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\mixer\gus.h">
+      <Filter>mixer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\mixer\gusmixmacros.h">
+      <Filter>mixer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\mixer\sbpro.h">
+      <Filter>mixer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\mixer\sbpromixmacros.h">
+      <Filter>mixer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\opl2\opl2.h">
+      <Filter>opl2</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\posix.h">
+      <Filter>st3play</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\dig.h" />
+    <ClInclude Include="..\..\dig_gus.h" />
+    <ClInclude Include="..\..\digadl.h" />
+    <ClInclude Include="..\..\digamg.h" />
+    <ClInclude Include="..\..\digcmd.h" />
+    <ClInclude Include="..\..\digdata.h" />
+    <ClInclude Include="..\..\digread.h" />
+  </ItemGroup>
+</Project>
