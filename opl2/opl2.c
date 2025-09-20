@@ -16,11 +16,11 @@
 #include <math.h>
 #include "opl2.h"
 
-#define MY_PI 3.14159265359
+#define MY_PI 3.1415926535898
 
-#define ISA_OSCPIN_CLK (315000000.0 / 22.0) /* 14318181.81 (recurring) Hz */
-#define OPL2_CLK (ISA_OSCPIN_CLK / 4.0) /* 3579545.45 (recurring) Hz */
-#define OPL2_OUTPUT_RATE (OPL2_CLK / 72.0) /* 49715.90 (recurring) Hz */
+#define ISA_OSCPIN_CLK 14318180.0 /* exact nominal clock */
+#define OPL2_CLK (ISA_OSCPIN_CLK / 4.0) /* 3579545.0Hz */
+#define OPL2_OUTPUT_RATE (OPL2_CLK / 72.0) /* ~49715.9028Hz */
 
 #define NUM_CHANNELS 9
 #define OPERATORS_PER_CHANNEL 2

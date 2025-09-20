@@ -303,7 +303,7 @@ void settempo(int32_t bpm)
 			hz = 19;
 
 		const int32_t PIT_Period = 1193180 / hz; // 8bb: ST3 off-by-one PIT clock constant
-		audio.samplesPerTick64 = (int64_t)((audio.dPIT2SamplesPerTick * (PIT_Period+1)) + 0.5); // 8bb: rounded 32.32fp
+		audio.samplesPerTick64 = (int64_t)((audio.dPIT2SamplesPerTick * PIT_Period) + 0.5); // 8bb: rounded 32.32fp
 	}
 	else
 	{

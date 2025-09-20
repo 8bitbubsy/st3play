@@ -10,17 +10,10 @@
 // 9 LAdlib + 5 LAdlibDrums + 2 unused
 // 9 RAdlib + 5 RAdlibDrums + 2 unused
 #define ACHANNELS 48
-
 // 8bb: custom defines
 
-/* Nominal PC PIT clock (clock varies slightly on every computer)
-**
-** ATMasterClkMHz = ~14.31818MHz (exactly 315/22)
-** PITClkMHz = ATMasterClkMHz / 12
-** PITClkHz = (ATMasterClkMHz / 12) * 100000
-** Simplified: (315/22)/12 -> 315/(22*12) -> 315/264 (MHz) -> 315000000/264 (Hz)
-*/
-#define PC_PIT_CLK (315000000.0 / 264.0)
+#define PC_AT_OSC_CLK 14318180.0
+#define PC_PIT_CLK (PC_AT_OSC_CLK / 12.0)
 #define MAX_ORDERS 256
 #define MAX_INSTRUMENTS 99
 #define MAX_PATTERNS 100
