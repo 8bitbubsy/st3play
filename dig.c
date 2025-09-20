@@ -349,7 +349,7 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 	if (samples <= 0)
 		return;
 
-	if (!audio.playing || audio.samplesPerTick64 == 0)
+	if (!audio.playing || audio.samplesPerTickInt == 0)
 	{
 		memset(buffer, 0, samples * 2 * sizeof (int16_t));
 		return;
@@ -358,22 +358,27 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 	float *fMixL = audio.fMixBufferL;
 	float *fMixR = audio.fMixBufferR;
 
-	int32_t samplesLeft = samples;
+	uint32_t samplesLeft = samples;
 	while (samplesLeft > 0)
 	{
-		if (audio.tickSampleCounter64 <= 0)
+		if (audio.tickSampleCounter == 0)
 		{
 			dorow(); // 8bb: digread.c (replayer ticker)
 			updateregs(); // 8bb: dig.c (GUS & AdLib updating)
-			audio.tickSampleCounter64 += audio.samplesPerTick64;
+
+			audio.tickSampleCounter = audio.samplesPerTickInt;
+
+			audio.tickSampleCounterFrac += audio.samplesPerTickFrac;
+			if (audio.tickSampleCounterFrac >= UINT32_MAX)
+			{
+				audio.tickSampleCounterFrac &= UINT32_MAX;
+				audio.tickSampleCounter++;
+			}
 		}
 
-		// 8bb: use fractional precision for "samples per tick" (needed for GUS PIT timing precision)
-		const int32_t remainingTick = (audio.tickSampleCounter64 + UINT32_MAX) >> 32; // ceil (rounded upwards)
-
-		int32_t samplesToMix = samplesLeft;
-		if (samplesToMix > remainingTick)
-			samplesToMix = remainingTick;
+		uint32_t samplesToMix = samplesLeft;
+		if (samplesToMix > audio.tickSampleCounter)
+			samplesToMix = audio.tickSampleCounter;
 
 		// 8bb: mix PCM voices
 		if (audio.soundcardtype == SOUNDCARD_GUS)
@@ -384,7 +389,7 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 		// 8bb: mix AdLib (OPL2) voices
 		if (song.adlibused)
 		{
-			for (int32_t i = 0; i < samplesToMix; i++)
+			for (uint32_t i = 0; i < samplesToMix; i++)
 			{
 				const float fSample = OPL2_Output() * (3.0f * (1.0f / 32768.0f));
 
@@ -396,8 +401,8 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 		fMixL += samplesToMix;
 		fMixR += samplesToMix;
 
+		audio.tickSampleCounter -= samplesToMix;
 		samplesLeft -= samplesToMix;
-		audio.tickSampleCounter64 -= (int64_t)samplesToMix << 32;
 	}
 
 	double dOut, dPrng;
@@ -497,7 +502,9 @@ bool zplaysong(int16_t order)
 	song.musiccount = 0; // 8bb: added this
 	
 	resetAudioDither();
-	audio.tickSampleCounter64 = 0; // 8bb: zero tick sample counter so that it will instantly initiate a tick
+
+	// zero tick sample counter so that it will instantly initiate a tick
+	audio.tickSampleCounterFrac = audio.tickSampleCounter = 0;
 
 	audio.playing = true;
 	return true;
@@ -583,7 +590,9 @@ bool initMusic(int32_t audioFrequency, int32_t audioBufferSize)
 	setMixingVol(256);
 
 	audio.playing = true;
-	audio.samplesPerTick64 = 0;
+
+	// zero tick sample counter so that it will instantly initiate a tick
+	audio.tickSampleCounterFrac = audio.tickSampleCounter = 0;
 
 	audio.fMixBufferL = (float *)calloc(audioBufferSize, sizeof (float));
 	audio.fMixBufferR = (float *)calloc(audioBufferSize, sizeof (float));

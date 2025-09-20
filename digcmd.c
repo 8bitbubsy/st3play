@@ -287,6 +287,8 @@ static void s_settempo(zchn_t *ch)
 
 void settempo(int32_t bpm)
 {
+	int64_t samplesPerTick64;
+
 	bpm &= 0xFF; // 8bb: input is supposed to be uint8_t, so mask just in case
 
 	// 8bb: ST3+SB + Txx <= 0x20 = do nothing
@@ -303,12 +305,16 @@ void settempo(int32_t bpm)
 			hz = 19;
 
 		const int32_t PIT_Period = 1193180 / hz; // 8bb: ST3 off-by-one PIT clock constant
-		audio.samplesPerTick64 = (int64_t)((audio.dPIT2SamplesPerTick * PIT_Period) + 0.5); // 8bb: rounded 32.32fp
+
+		samplesPerTick64 = (int64_t)((audio.dPIT2SamplesPerTick * PIT_Period) + 0.5); // 8bb: rounded 32.32fp
 	}
 	else
 	{
-		audio.samplesPerTick64 = (int64_t)((audio.dBPM2SamplesPerTick / bpm) + 0.5); // 8bb: rounded 32.32fp
+		samplesPerTick64 = (int64_t)((audio.dBPM2SamplesPerTick / bpm) + 0.5); // 8bb: rounded 32.32fp
 	}
+
+	audio.samplesPerTickInt = samplesPerTick64 >> 32;
+	audio.samplesPerTickFrac = (uint32_t)samplesPerTick64;
 }
 
 void setspeed(uint8_t val)

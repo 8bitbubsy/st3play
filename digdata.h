@@ -174,11 +174,10 @@ typedef struct audio_t
 	int32_t soundcardtype;
 	uint8_t mastermul; // 8bb: used for SB mixer
 	int32_t mixingVol;
-	int64_t tickSampleCounter64, samplesPerTick64; // 8bb: 32.32 fixed-polnt
-	uint32_t notemixingspeed; // 8bb: ST3 SB/GUS mixing frequency
+	uint32_t tickSampleCounter, samplesPerTickInt, notemixingspeed; // 8bb: ST3 SB/GUS mixing frequency
 	uint32_t GUSRate;
 	uint32_t outputFreq; // 8bb: actual mixing speed for our SB/GUS mixers
-
+	uint64_t tickSampleCounterFrac, samplesPerTickFrac;
 	float *fMixBufferL, *fMixBufferR, fMixNormalize;
 
 	double dBPM2SamplesPerTick, dPIT2SamplesPerTick, dHz2ST3Delta, dST3Delta2MixDelta;
