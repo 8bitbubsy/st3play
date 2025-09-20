@@ -178,9 +178,9 @@ typedef struct audio_t
 	uint32_t GUSRate;
 	uint32_t outputFreq; // 8bb: actual mixing speed for our SB/GUS mixers
 	uint64_t tickSampleCounterFrac, samplesPerTickFrac;
-	float *fMixBufferL, *fMixBufferR, fMixNormalize;
+	float *fMixBufferL, *fMixBufferR;
 
-	double dBPM2SamplesPerTick, dPIT2SamplesPerTick, dHz2ST3Delta, dST3Delta2MixDelta;
+	double dMixNormalize, dBPM2SamplesPerTick, dPIT2SamplesPerTick, dHz2ST3Delta, dST3Delta2MixDelta;
 } audio_t;
 
 // ------------------------------------------------------------

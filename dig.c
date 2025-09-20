@@ -30,7 +30,7 @@
 #include "mixer/sbpro.h"
 #include "opl2/opl2.h"
 
-static int32_t randSeed;
+static uint32_t randSeed;
 static double dPrngStateL, dPrngStateR;
 
 static void setmasterflags(void)
@@ -341,7 +341,7 @@ static inline int32_t random32(void) // 8bb: added this (LCG 32-bit random)
 {
 	randSeed *= 134775813;
 	randSeed++;
-	return randSeed;
+	return (int32_t)randSeed;
 }
 
 void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
@@ -391,7 +391,7 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 		{
 			for (uint32_t i = 0; i < samplesToMix; i++)
 			{
-				const float fSample = OPL2_Output() * (3.0f * (1.0f / 32768.0f));
+				const float fSample = OPL2_Output() * (3.0f / 32768.0f);
 
 				fMixL[i] += fSample;
 				fMixR[i] += fSample;
@@ -410,8 +410,8 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 	for (int32_t i = 0; i < samples; i++)
 	{
 		// 8bb: left channel - 1-bit triangular dithering
-		dPrng = random32() * (0.5 / INT32_MAX); // 8bb: -0.5 .. 0.5
-		dOut = audio.fMixBufferL[i] * audio.fMixNormalize;
+		dPrng = random32() * (1.0 / (UINT32_MAX+1.0)); // -0.5 .. 0.5
+		dOut = (double)audio.fMixBufferL[i] * audio.dMixNormalize;
 		dOut = (dOut + dPrng) - dPrngStateL;
 		dPrngStateL = dPrng;
 		out32 = (int32_t)dOut;
@@ -419,17 +419,16 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 		*buffer++ = (int16_t)out32;
 
 		// 8bb: right channel - 1-bit triangular dithering
-		dPrng = random32() * (0.5 / INT32_MAX); // 8bb: -0.5 .. 0.5
-		dOut = audio.fMixBufferR[i] * audio.fMixNormalize;
+		dPrng = random32() * (1.0 / (UINT32_MAX+1.0)); // -0.5 .. 0.5
+		dOut = (double)audio.fMixBufferR[i] * audio.dMixNormalize;
 		dOut = (dOut + dPrng) - dPrngStateR;
 		dPrngStateR = dPrng;
 		out32 = (int32_t)dOut;
 		CLAMP16(out32);
 		*buffer++ = (int16_t)out32;
 
-		// 8bb: clear what we read
-		audio.fMixBufferL[i] = 0.0f;
-		audio.fMixBufferR[i] = 0.0f;
+		// 8bb: clear what we read from the mixing buffer
+		audio.fMixBufferL[i] = audio.fMixBufferR[i] = 0.0f;
 	}
 }
 
@@ -500,10 +499,9 @@ bool zplaysong(int16_t order)
 	neworder();
 
 	song.musiccount = 0; // 8bb: added this
-	
 	resetAudioDither();
 
-	// zero tick sample counter so that it will instantly initiate a tick
+	// 8bb: zero tick sample counter so that it will instantly initiate a tick
 	audio.tickSampleCounterFrac = audio.tickSampleCounter = 0;
 
 	audio.playing = true;
@@ -525,8 +523,7 @@ static void freeinsmem(int32_t a)
 void resetAudioDither(void)
 {
 	randSeed = 0x12345000;
-	dPrngStateL = 0.0;
-	dPrngStateR = 0.0;
+	dPrngStateL = dPrngStateR = 0.0;
 }
 
 void setMixingVol(int32_t vol) // 0..256
@@ -539,7 +536,7 @@ void setMixingVol(int32_t vol) // 0..256
 
 	vol *= audio.mastermul; // 0..32512
 
-	audio.fMixNormalize = 32768.0f * (vol * (1.0f / (256.0f * 128.0f)));
+	audio.dMixNormalize = 32768.0 * (vol * (1.0 / (256.0 * 128.0)));
 }
 
 void closeMusic(void)
@@ -589,8 +586,6 @@ bool initMusic(int32_t audioFrequency, int32_t audioBufferSize)
 
 	setMixingVol(256);
 
-	audio.playing = true;
-
 	// zero tick sample counter so that it will instantly initiate a tick
 	audio.tickSampleCounterFrac = audio.tickSampleCounter = 0;
 
@@ -609,6 +604,7 @@ bool initMusic(int32_t audioFrequency, int32_t audioBufferSize)
 		return false;
 	}
 
+	audio.playing = true;
 	return true;
 }
 
