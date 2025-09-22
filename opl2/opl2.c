@@ -9,6 +9,7 @@
 **  the Opal library OpenMPT uses (also BSD 3-Clause).
 */
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
@@ -16,11 +17,12 @@
 #include <math.h>
 #include "opl2.h"
 
-#define MY_PI 3.1415926535898
+#define CUBIC_PHASES 4096
+#define CUBIC_WIDTH 4
+#define CUBIC_WIDTH_BITS 2 /* log2(CUBIC_WIDTH) */
 
 #define ISA_OSCPIN_CLK 14318180.0 /* exact nominal clock */
-#define OPL2_CLK (ISA_OSCPIN_CLK / 4.0) /* 3579545.0Hz */
-#define OPL2_OUTPUT_RATE (OPL2_CLK / 72.0) /* ~49715.9028Hz */
+#define OPL2_OUTPUT_RATE (ISA_OSCPIN_CLK / 288.0) /* ~49715.9028Hz */
 
 #define NUM_CHANNELS 9
 #define OPERATORS_PER_CHANNEL 2
@@ -37,7 +39,7 @@ enum
 
 typedef struct rcFilter_t
 {
-	float tmp, c1, c2;
+	float lastSample, c1, c2;
 } rcFilter_t;
 
 typedef struct Operator_t
@@ -68,24 +70,24 @@ static const uint16_t RateTables[4][8] =
 	{ 1, 0, 0, 0, 0, 0, 0, 0 }
 };
 
-static const uint16_t ExpTable[256] = // 8bb: from ROM, but modified for speed: x=(x+1024)*2
+static const uint16_t ExpTable[256] = // 8bb: from ROM, but modified for speed: x=x+1024
 {
-	4084,4074,4062,4052,4040,4030,4020,4008,3998,3986,3976,3966,3954,3944,3932,3922,
-	3912,3902,3890,3880,3870,3860,3848,3838,3828,3818,3808,3796,3786,3776,3766,3756,
-	3746,3736,3726,3716,3706,3696,3686,3676,3666,3656,3646,3636,3626,3616,3606,3596,
-	3588,3578,3568,3558,3548,3538,3530,3520,3510,3500,3492,3482,3472,3464,3454,3444,
-	3434,3426,3416,3408,3398,3388,3380,3370,3362,3352,3344,3334,3326,3316,3308,3298,
-	3290,3280,3272,3262,3254,3246,3236,3228,3218,3210,3202,3192,3184,3176,3168,3158,
-	3150,3142,3132,3124,3116,3108,3100,3090,3082,3074,3066,3058,3050,3040,3032,3024,
-	3016,3008,3000,2992,2984,2976,2968,2960,2952,2944,2936,2928,2920,2912,2904,2896,
-	2888,2880,2872,2866,2858,2850,2842,2834,2826,2818,2812,2804,2796,2788,2782,2774,
-	2766,2758,2752,2744,2736,2728,2722,2714,2706,2700,2692,2684,2678,2670,2664,2656,
-	2648,2642,2634,2628,2620,2614,2606,2600,2592,2584,2578,2572,2564,2558,2550,2544,
-	2536,2530,2522,2516,2510,2502,2496,2488,2482,2476,2468,2462,2456,2448,2442,2436,
-	2428,2422,2416,2410,2402,2396,2390,2384,2376,2370,2364,2358,2352,2344,2338,2332,
-	2326,2320,2314,2308,2300,2294,2288,2282,2276,2270,2264,2258,2252,2246,2240,2234,
-	2228,2222,2216,2210,2204,2198,2192,2186,2180,2174,2168,2162,2156,2150,2144,2138,
-	2132,2128,2122,2116,2110,2104,2098,2092,2088,2082,2076,2070,2064,2060,2054,2048
+	2042,2037,2031,2026,2020,2015,2010,2004,1999,1993,1988,1983,1977,1972,1966,1961,
+	1956,1951,1945,1940,1935,1930,1924,1919,1914,1909,1904,1898,1893,1888,1883,1878,
+	1873,1868,1863,1858,1853,1848,1843,1838,1833,1828,1823,1818,1813,1808,1803,1798,
+	1794,1789,1784,1779,1774,1769,1765,1760,1755,1750,1746,1741,1736,1732,1727,1722,
+	1717,1713,1708,1704,1699,1694,1690,1685,1681,1676,1672,1667,1663,1658,1654,1649,
+	1645,1640,1636,1631,1627,1623,1618,1614,1609,1605,1601,1596,1592,1588,1584,1579,
+	1575,1571,1566,1562,1558,1554,1550,1545,1541,1537,1533,1529,1525,1520,1516,1512,
+	1508,1504,1500,1496,1492,1488,1484,1480,1476,1472,1468,1464,1460,1456,1452,1448,
+	1444,1440,1436,1433,1429,1425,1421,1417,1413,1409,1406,1402,1398,1394,1391,1387,
+	1383,1379,1376,1372,1368,1364,1361,1357,1353,1350,1346,1342,1339,1335,1332,1328,
+	1324,1321,1317,1314,1310,1307,1303,1300,1296,1292,1289,1286,1282,1279,1275,1272,
+	1268,1265,1261,1258,1255,1251,1248,1244,1241,1238,1234,1231,1228,1224,1221,1218,
+	1214,1211,1208,1205,1201,1198,1195,1192,1188,1185,1182,1179,1176,1172,1169,1166,
+	1163,1160,1157,1154,1150,1147,1144,1141,1138,1135,1132,1129,1126,1123,1120,1117,
+	1114,1111,1108,1105,1102,1099,1096,1093,1090,1087,1084,1081,1078,1075,1072,1069,
+	1066,1064,1061,1058,1055,1052,1049,1046,1044,1041,1038,1035,1032,1030,1027,1024
 };
 
 static const uint16_t LogSinTable[256] = // 8bb: from ROM
@@ -136,12 +138,12 @@ static const uint8_t levtab[128] = // 8bb: based on KSL table from ROM, but modi
 };
 
 static bool NoteSel, TremoloDepth, VibratoDepth;
-static int16_t LastOutput, CurrOutput;
+static int16_t SampleBuffer[CUBIC_WIDTH];
 static uint16_t Clock, TremoloClock, TremoloLevel, VibratoTick, VibratoClock;
-static double dSampleRate, dSampleRateMul, dSampleAccum;
+static float fCubicLUT[CUBIC_PHASES*CUBIC_WIDTH], fResampleRatio, fSampleAccum, fCubicPhaseMul;
 static Channel_t Channel[NUM_CHANNELS];
 static Operator_t Operator[NUM_OPERATORS];
-static rcFilter_t dcBlockFilter;
+static rcFilter_t filter;
 
 static int16_t OperatorOutput(Operator_t *Op, uint32_t phase_step, int16_t vibrato, int16_t mod, int16_t fbshift)
 {
@@ -225,10 +227,8 @@ static int16_t OperatorOutput(Operator_t *Op, uint32_t phase_step, int16_t vibra
 
 		// Envelope, and therefore the operator, is not running
 		default:
-		{
 			Op->Out[0] = Op->Out[1] = 0;
-		}
-		return 0;
+			return 0;
 	}
 
 	// Feedback? In that case we modulate by a blend of the last two samples
@@ -288,6 +288,8 @@ static int16_t OperatorOutput(Operator_t *Op, uint32_t phase_step, int16_t vibra
 		mix = 0x1FFF;
 
 	int16_t v = ExpTable[mix & 0xFF] >> (mix >> 8);
+
+	v += v;
 	if (negate)
 		v = ~v;
 
@@ -300,7 +302,7 @@ static int16_t OperatorOutput(Operator_t *Op, uint32_t phase_step, int16_t vibra
 
 static int16_t ChannelOutput(Channel_t *Ch)
 {
-	int16_t vibrato = (Ch->Freq >> 7) & 7;
+	int16_t out, vibrato = (Ch->Freq >> 7) & 7;
 	if (!VibratoDepth)
 		vibrato >>= 1;
 
@@ -321,8 +323,6 @@ static int16_t ChannelOutput(Channel_t *Ch)
 	}
 
 	// Combine individual operator outputs
-	int16_t out;
-
 	if (Ch->ModulationType == 0)
 	{
 		// Frequency modulation (well, phase modulation technically)
@@ -339,7 +339,7 @@ static int16_t ChannelOutput(Channel_t *Ch)
 	return out;
 }
 
-static int16_t Output(void)
+static int16_t OutputOPL2Sample(void)
 {
 	int32_t mix = 0;
 
@@ -360,8 +360,7 @@ static int16_t Output(void)
 	if (!TremoloDepth)
 		TremoloLevel >>= 2;
 
-	VibratoTick++;
-	if (VibratoTick >= 1024)
+	if (++VibratoTick >= 1024)
 	{
 		VibratoTick = 0;
 		VibratoClock = (VibratoClock + 1) & 7;
@@ -386,8 +385,7 @@ static void ComputeRates(Channel_t *Ch, Operator_t *Op)
 	Op->AttackAdd = (rate_high < 12) ? 1 : (1 << (rate_high - 12));
 	Op->AttackTab = RateTables[rate_low];
 
-	// Attack rate of 15 is always instant
-	if (Op->AttackRate == 15)
+	if (Op->AttackRate == 15) // Attack rate of 15 is always instant
 		Op->AttackAdd = 0xFFF;
 
 	combined_rate = Op->DecayRate * 4 + (Ch->KeyScaleNumber >> (Op->KeyScaleRate ? 0 : 2));
@@ -456,12 +454,10 @@ static void SetOctave(Channel_t *Ch, uint16_t octave)
 
 static void OperatorSetKeyOn(Operator_t *Op, bool on)
 {
-	// Already on/off?
-	if (Op->KeyOn == on)
+	if (Op->KeyOn == on) // Already on/off?
 		return;
 
 	Op->KeyOn = on;
-
 	if (on)
 	{
 		// The highest attack rate is instant; it bypasses the attack phase
@@ -531,37 +527,35 @@ static void SetReleaseRate(Channel_t *Ch, Operator_t *Op, uint16_t rate)
 	ComputeRates(Ch, Op);
 }
 
-static void calcRCFilterCoeffs(double sr, double hz, rcFilter_t *f)
-{
-	const double a = (hz < sr / 2.0) ? cos((MY_PI * hz) / sr) : 1.0;
-	const double b = 2.0 - a;
-	const double c = b - sqrt((b * b) - 1.0);
-
-	f->c1 = (float)(1.0 - c);
-	f->c2 = (float)c;
-}
-
-static void RCHighPassFilter(rcFilter_t *f, const float in, float *out)
-{
-	f->tmp = (f->c1 * in) + (f->c2 * f->tmp);
-	*out = in - f->tmp;
-}
-
 void OPL2_Init(double dOutputRate)
 {
-	// 8bb: DC-blocking filter (RC values taken from Sound Blaster 1.0 schematics)
-	double R = 10000.0; // 10K ohm
-	double C = 1.0e-5; // 10uF
-	double cutoff = 1.0 / (MY_PI * R * C); // ~3.18Hz
-	calcRCFilterCoeffs(dOutputRate, cutoff, &dcBlockFilter);
-	dcBlockFilter.tmp = 0.0f;
+	// 8bb: DC-blocking high-pass filter (cutoff calculated from SB 1.0 schematics)
+	const double cutoff = 3.1831;
+	const double a = 2.0 - cos((M_PI * cutoff) / dOutputRate);
+	filter.c2 = (float)(a - sqrt((a * a) - 1.0));
+	filter.c1 = 1.0f - filter.c2;
+	filter.lastSample = 0.0f;
+
+	// 8bb: calculate 4-point cubic spline LUT
+	float *fPtr = fCubicLUT;
+	for (int32_t i = 0; i < CUBIC_PHASES; i++)
+	{
+		const float x1 = i * (1.0f / CUBIC_PHASES);
+		const float x2 = x1 * x1; // x^2
+		const float x3 = x2 * x1; // x^3
+
+		*fPtr++ = (x1 * -0.5f) + (x2 *  1.0f) + (x3 * -0.5f);
+		*fPtr++ =                (x2 * -2.5f) + (x3 *  1.5f) + 1.0f;
+		*fPtr++ = (x1 *  0.5f) + (x2 *  2.0f) + (x3 * -1.5f);
+		*fPtr++ =                (x2 * -0.5f) + (x3 *  0.5f);
+	}
 
 	TremoloClock = TremoloLevel = VibratoTick = VibratoClock = Clock = 0;
 	NoteSel = TremoloDepth = VibratoDepth = false;
 
 	// Initialize operators
-	Operator_t *Op = Operator;
 	memset(Operator, 0, sizeof (Operator));
+	Operator_t *Op = Operator;
 	for (int32_t i = 0; i < NUM_OPERATORS; i++, Op++)
 	{
 		Op->FreqMultTimes2 = 1;
@@ -570,8 +564,8 @@ void OPL2_Init(double dOutputRate)
 	}
 
 	// Initialize channels
-	Channel_t *Ch = Channel;
 	memset(Channel, 0, sizeof (Channel));
+	Channel_t *Ch = Channel;
 	for (int32_t i = 0; i < NUM_CHANNELS; i++, Ch++)
 	{
 		const int32_t op = chan_ops[i];
@@ -589,13 +583,18 @@ void OPL2_Init(double dOutputRate)
 		ComputeRates(OpCh, Op);
 	}
 
-	if (dOutputRate == 0.0) // 8bb: Sanity
+	if (dOutputRate == 0.0) // 8bb: sanity
 		dOutputRate = OPL2_OUTPUT_RATE;
 
-	dSampleRate = dOutputRate / OPL2_OUTPUT_RATE;
-	dSampleAccum = 0.0;
-	dSampleRateMul = 1.0 / dSampleRate;
-	LastOutput = CurrOutput = 0;
+	fResampleRatio = (float)(dOutputRate / OPL2_OUTPUT_RATE);
+	fCubicPhaseMul = CUBIC_PHASES / fResampleRatio;
+
+	// 8bb: pre-fill resampling cubic spline buffer
+	SampleBuffer[0] = 0;
+	SampleBuffer[1] = OutputOPL2Sample();
+	SampleBuffer[2] = OutputOPL2Sample();
+	SampleBuffer[3] = OutputOPL2Sample();
+	fSampleAccum = 0.0f;
 }
 
 void OPL2_WritePort(uint16_t reg_num, uint8_t val)
@@ -627,9 +626,7 @@ void OPL2_WritePort(uint16_t reg_num, uint8_t val)
 	{
 		// Convert to channel number
 		int32_t chan_num = reg_num & 15;
-
-		// Valid channel?
-		if (chan_num >= 9)
+		if (chan_num >= 9) // Valid channel?
 			return;
 
 		Channel_t *Ch = &Channel[chan_num];
@@ -638,40 +635,32 @@ void OPL2_WritePort(uint16_t reg_num, uint8_t val)
 		switch (reg_num & 0xF0)
 		{
 			default:
-			break;
+				break;
 			
 			// Frequency low
 			case 0xA0:
-			{
 				SetFrequencyLow(Ch, val);
-			}
-			break;
+				break;
 	
 			// Key-on / Octave / Frequency High
 			case 0xB0:
-			{
 				SetKeyOn(Ch, !!(val & 0x20));
 				SetOctave(Ch, (val >> 2) & 7);
 				SetFrequencyHigh(Ch, val & 3);
-			}
-			break;
+				break;
 
 			// Feedback Factor / Modulation Type
 			case 0xC0:
-			{
 				SetFeedback(Ch, (val >> 1) & 7);
 				Ch->ModulationType = val & 1;
-			}
-			break;
+				break;
 		}
 	}
 	else if ((type >= 0x20 && type <= 0x80) || type == 0xE0) // Operator registers
 	{
 		// Convert to operator number
 		int32_t op_num = op_lookup[reg_num & 0x1F];
-
-		// Valid register?
-		if (op_num < 0)
+		if (op_num < 0) // Valid register?
 			return;
 
 		Operator_t *Op = &Operator[op_num];
@@ -682,69 +671,63 @@ void OPL2_WritePort(uint16_t reg_num, uint8_t val)
 		{
 			// Tremolo Enable / Vibrato Enable / Sustain Mode / Envelope Scaling / Frequency Multiplier
 			case 0x20:
-			{
 				Op->TremoloEnable = !!(val & 0x80);
 				Op->VibratoEnable = !!(val & 0x40);
 				Op->SustainMode = !!(val & 0x20);
 				SetEnvelopeScaling(OpCh, Op, !!(val & 0x10));
 				Op->FreqMultTimes2 = mul_times_2[val & 15];
-			}
-			break;
+				break;
 
 			// Key Scale / Output Level
 			case 0x40:
-			{
 				SetKeyScale(OpCh, Op, val >> 6);
 				Op->OutputLevel = (val & 0x3F) << 2;
-			}
-			break;
+				break;
 
 			// Attack Rate / Decay Rate
 			case 0x60:
-			{
 				SetAttackRate(OpCh, Op, val >> 4);
 				SetDecayRate(OpCh, Op, val & 15);
-			}
-			break;
+				break;
 
 			// Sustain Level / Release Rate
 			case 0x80:
-			{
 				SetSustainLevel(Op, val >> 4);
 				SetReleaseRate(OpCh, Op, val & 15);
-			}
-			break;
+				break;
 			
 			// Waveform
 			case 0xE0:
-			{
 				Op->Waveform = val & 3;
-			}
-			break;
+				break;
 		}
 	}
 }
 
 float OPL2_Output(void)
 {
-	// If the destination sample rate is higher than the OPL2 sample rate, we need to skip ahead
-	while (dSampleAccum >= dSampleRate)
-	{
-		dSampleAccum -= dSampleRate;
+	// 8bb: changed interpolation from 2-point linear to 4-point cubic spline
 
-		LastOutput = CurrOutput;
-		CurrOutput = Output();
+	while (fSampleAccum >= fResampleRatio)
+	{
+		fSampleAccum -= fResampleRatio;
+
+		SampleBuffer[0] = SampleBuffer[1];
+		SampleBuffer[1] = SampleBuffer[2];
+		SampleBuffer[2] = SampleBuffer[3];
+		SampleBuffer[3] = OutputOPL2Sample();
 	}
 
-	// Mix with the partial accumulation
-	const double dOmblend = dSampleRate - dSampleAccum;
-	float fOutput = (float)((LastOutput * dOmblend + CurrOutput * dSampleAccum) * dSampleRateMul);
+	const uint32_t phase = (int32_t)(fSampleAccum * fCubicPhaseMul);
+	assert(phase < CUBIC_PHASES);
+	fSampleAccum += 1.0f;
 
-	dSampleAccum += 1.0;
+	const int16_t *s = SampleBuffer;
+	const float *l = &fCubicLUT[phase << CUBIC_WIDTH_BITS];
+	float fOut = (s[0] * l[0]) + (s[1] * l[1]) + (s[2] * l[2]) + (s[3] * l[3]);
 
-	// 8bb: Apply DC-centering high-pass filter
-	float fOut;
-	RCHighPassFilter(&dcBlockFilter, fOutput, &fOut);
+	// 8bb: apply DC-centering high-pass filter (cutoff = ~3.18Hz)
+	fOut -= filter.lastSample = (filter.c1 * fOut) + (filter.c2 * filter.lastSample);
 
 	return fOut;
 }
