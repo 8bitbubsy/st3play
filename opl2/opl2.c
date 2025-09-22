@@ -527,11 +527,13 @@ static void SetReleaseRate(Channel_t *Ch, Operator_t *Op, uint16_t rate)
 	ComputeRates(Ch, Op);
 }
 
-void OPL2_Init(double dOutputRate)
+void OPL2_Init(int32_t audioOutputFrequency)
 {
-	// 8bb: DC-blocking high-pass filter (cutoff calculated from SB 1.0 schematics)
-	const double cutoff = 3.1831;
-	const double a = 2.0 - cos((M_PI * cutoff) / dOutputRate);
+	const double dAudioRate = (audioOutputFrequency <= 0) ? OPL2_OUTPUT_RATE : audioOutputFrequency;
+
+	// 8bb: DC-blocking high-pass filter
+	const double cutoff = 3.1831; // 8bb: from Sound Blaster 1.0 RC values
+	const double a = 2.0 - cos((M_PI * cutoff) / dAudioRate);
 	filter.c2 = (float)(a - sqrt((a * a) - 1.0));
 	filter.c1 = 1.0f - filter.c2;
 	filter.lastSample = 0.0f;
@@ -583,10 +585,7 @@ void OPL2_Init(double dOutputRate)
 		ComputeRates(OpCh, Op);
 	}
 
-	if (dOutputRate == 0.0) // 8bb: sanity
-		dOutputRate = OPL2_OUTPUT_RATE;
-
-	fResampleRatio = (float)(dOutputRate / OPL2_OUTPUT_RATE);
+	fResampleRatio = (float)(dAudioRate / OPL2_OUTPUT_RATE);
 	fCubicPhaseMul = CUBIC_PHASES / fResampleRatio;
 
 	// 8bb: pre-fill resampling cubic spline buffer
