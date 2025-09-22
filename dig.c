@@ -33,6 +33,8 @@
 static uint32_t randSeed;
 static double dPrngStateL, dPrngStateR;
 
+bool WAVRender_Flag; // global
+
 static void setmasterflags(void)
 {
 	song.masterflags = song.header.flags;
@@ -349,7 +351,7 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 	if (samples <= 0)
 		return;
 
-	if (!audio.playing || audio.samplesPerTickInt == 0)
+	if (!WAVRender_Flag && (!audio.playing || audio.samplesPerTickInt == 0))
 	{
 		memset(buffer, 0, samples * 2 * sizeof (int16_t));
 		return;
@@ -580,7 +582,9 @@ bool initMusic(int32_t audioFrequency, int32_t audioBufferSize)
 {
 	audio.outputFreq = CLAMP(audioFrequency, 8000, 768000);
 
-	closeMixer();
+	if (!WAVRender_Flag)
+		closeMixer();
+
 	closeMusic();
 	memset(song._zchn, 0, sizeof (song._zchn));
 
@@ -598,13 +602,17 @@ bool initMusic(int32_t audioFrequency, int32_t audioBufferSize)
 		return false;
 	}
 
-	if (!openMixer(audio.outputFreq, audioBufferSize))
+	if (!WAVRender_Flag)
 	{
-		closeMusic();
-		return false;
+		if (!openMixer(audio.outputFreq, audioBufferSize))
+		{
+			closeMusic();
+			return false;
+		}
+
+		audio.playing = true;
 	}
 
-	audio.playing = true;
 	return true;
 }
 
@@ -646,4 +654,80 @@ int32_t activeAdLibVoices(void)
 	}
 
 	return activeVoices;
+}
+
+// 8bb: added these WAV rendering routines
+
+static void WAV_WriteHeader(FILE *f, int32_t frq)
+{
+	uint16_t w;
+	uint32_t l;
+
+	const uint32_t RIFF = 0x46464952;
+	fwrite(&RIFF, 4, 1, f);
+	fseek(f, 4, SEEK_CUR);
+	const uint32_t WAVE = 0x45564157;
+	fwrite(&WAVE, 4, 1, f);
+
+	const uint32_t fmt = 0x20746D66;
+	fwrite(&fmt, 4, 1, f);
+	l = 16; fwrite(&l, 4, 1, f);
+	w = 1; fwrite(&w, 2, 1, f);
+	w = 2; fwrite(&w, 2, 1, f);
+	l = frq; fwrite(&l, 4, 1, f);
+	l = frq*2*2; fwrite(&l, 4, 1, f);
+	w = 2*2; fwrite(&w, 2, 1, f);
+	w = 8*2; fwrite(&w, 2, 1, f);
+
+	const uint32_t DATA = 0x61746164;
+	fwrite(&DATA, 4, 1, f);
+	fseek(f, 4, SEEK_CUR);
+}
+
+static void WAV_WriteEnd(FILE *f, uint32_t size)
+{
+	fseek(f, 4, SEEK_SET);
+	uint32_t l = size+4+24+8;
+	fwrite(&l, 4, 1, f);
+	fseek(f, 12+24+4, SEEK_SET);
+	fwrite(&size, 4, 1, f);
+}
+
+void WAVRender_Abort(void)
+{
+	WAVRender_Flag = false;
+}
+
+bool renderToWAV(uint32_t audioRate, uint32_t bufferSize, const char *filenameOut)
+{
+	int16_t *AudioBuffer = (int16_t *)malloc(bufferSize * 2 * sizeof (int16_t));
+	if (AudioBuffer == NULL)
+	{
+		WAVRender_Flag = false;
+		return false;
+	}
+
+	FILE *f = fopen(filenameOut, "wb");
+	if (f == NULL)
+	{
+		WAVRender_Flag = false;
+		free(AudioBuffer);
+		return false;
+	}
+
+	WAV_WriteHeader(f, audioRate);
+	uint32_t TotalSamples = 0;
+
+	while (WAVRender_Flag)
+	{
+		musmixer(AudioBuffer, bufferSize);
+		fwrite(AudioBuffer, 2, bufferSize * 2, f);
+		TotalSamples += bufferSize * 2;
+	}
+
+	WAV_WriteEnd(f, TotalSamples * sizeof (int16_t));
+	free(AudioBuffer);
+	fclose(f);
+
+	return true;
 }

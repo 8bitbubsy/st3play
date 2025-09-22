@@ -11,6 +11,7 @@
 #include "digcmd.h"
 #include "digamg.h"
 #include "digadl.h"
+#include "dig.h"
 
 static uint8_t getnote1(void);
 static void donotes(void);
@@ -92,7 +93,10 @@ int16_t neworder(void) // 8bb: rewritten to be more safe
 			*/
 			numSep++;
 			if (numSep >= song.header.ordnum)
+			{
+				WAVRender_Flag = false;
 				return 0;
+			}
 
 			continue;
 		}
@@ -101,6 +105,7 @@ int16_t neworder(void) // 8bb: rewritten to be more safe
 		{
 			// restart song
 			song.np_ord = 0;
+			WAVRender_Flag = false;
 
 			if (song.order[0] == 255)
 				return 0;

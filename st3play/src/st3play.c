@@ -15,7 +15,7 @@
 #define CLAMP(x, low, high) (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
 // defaults when not overridden by argument switches
-#define DEFAULT_MIX_FREQ 44100
+#define DEFAULT_MIX_FREQ 48000
 #define DEFAULT_MIX_BUFSIZE 1024
 #define DEFAULT_MIX_VOL 256
 #define DEFAULT_SOUNDCARD -1 /* -1 (auto-detect), SOUNDCARD_SBPRO or SOUNDCARD_GUS */
@@ -46,7 +46,7 @@ void wavRecordingThread(void *arg)
 void *wavRecordingThread(void *arg)
 #endif
 {
-	//WAVDump_Record(WAVRenderFilename);
+	renderToWAV(mixingFrequency, mixingBufferSize, WAVRenderFilename);
 #ifndef _WIN32
 	return NULL;
 #endif
@@ -57,7 +57,7 @@ void *wavRecordingThread(void *arg)
 static void sigtermFunc(int32_t signum)
 {
 	programRunning = false; // unstuck main loop
-	WAVDump_Flag = false; // unstuck WAV render loop
+	WAVRender_Flag = false; // unstuck WAV render loop
 	(void)signum;
 }
 #endif
@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
 	handleArguments(argc, argv);
 #endif
 
+	WAVRender_Flag = renderToWavFlag; // set WAV flag in dig.c
 	if (!initMusic(mixingFrequency, mixingBufferSize))
 	{
 		printf("Error: Out of memory while setting up replayer!\n");
@@ -110,9 +111,9 @@ int main(int argc, char *argv[])
 	sigaction(SIGTERM, &action, NULL);
 #endif
 
-	//if (renderToWavFlag)
-	//	return renderToWav();
 	zplaysong(0);
+	if (renderToWavFlag)
+		return renderToWav();
 
 	printf("Playing, press ESC to stop...\n");
 	printf("\n");
@@ -287,26 +288,24 @@ static void readKeyboard(void)
 
 static int32_t renderToWav(void)
 {
-	/*
 	const size_t filenameLen = strlen(filename);
 	WAVRenderFilename = (char *)malloc(filenameLen+5);
 
 	if (WAVRenderFilename == NULL)
 	{
 		printf("Error: Out of memory!\n");
-		freeMusic();
+		closeMusic();
 		return 1;
 	}
 
 	strcpy(WAVRenderFilename, filename);
 	strcat(WAVRenderFilename, ".wav");
 
-	WAVDump_Flag = true;
 	if (!createSingleThread(wavRecordingThread))
 	{
 		printf("Error: Couldn't create WAV rendering thread!\n");
 		free(WAVRenderFilename);
-		freeMusic();
+		closeMusic();
 		return 1;
 	}
 
@@ -315,11 +314,11 @@ static int32_t renderToWav(void)
 #ifndef _WIN32
 	modifyTerminal();
 #endif
-	while (WAVDump_Flag)
+	while (WAVRender_Flag)
 	{
 		Sleep(200);
 		if ( _kbhit())
-			WAVDump_Flag = false;
+			WAVRender_Flag = false;
 	}
 #ifndef _WIN32
 	revertTerminal();
@@ -328,8 +327,7 @@ static int32_t renderToWav(void)
 	closeSingleThread();
 
 	free(WAVRenderFilename);
-	freeMusic();
-	*/
+	closeMusic();
 
 	return 0;
 }
