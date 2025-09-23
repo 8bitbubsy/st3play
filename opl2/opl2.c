@@ -21,8 +21,8 @@
 #define CUBIC_WIDTH 4
 #define CUBIC_WIDTH_BITS 2 /* log2(CUBIC_WIDTH) */
 
-#define ISA_OSCPIN_CLK 14318180.0 /* exact nominal clock */
-#define OPL2_OUTPUT_RATE (ISA_OSCPIN_CLK / 288.0) /* ~49715.9028Hz */
+#define ISA_OSCPIN_CLK (157500000.0 / 11.0) /* exact nominal clock */
+#define OPL2_OUTPUT_RATE (ISA_OSCPIN_CLK / 288.0) /* ~49715.9090Hz */
 
 #define NUM_CHANNELS 9
 #define OPERATORS_PER_CHANNEL 2

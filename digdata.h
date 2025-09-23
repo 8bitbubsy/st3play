@@ -12,8 +12,7 @@
 #define ACHANNELS 48
 // 8bb: custom defines
 
-#define PC_AT_OSC_CLK 14318180.0
-#define PC_PIT_CLK (PC_AT_OSC_CLK / 12.0)
+#define PC_PIT_CLK (157500000.0 / 132.0) /* exact nominal clock */
 #define MAX_ORDERS 256
 #define MAX_INSTRUMENTS 99
 #define MAX_PATTERNS 100
