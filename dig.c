@@ -393,7 +393,7 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 		{
 			for (uint32_t i = 0; i < samplesToMix; i++)
 			{
-				const float fSample = OPL2_Output() * (3.0f / 32768.0f);
+				const float fSample = OPL2_Output() * (2.0f / 32768.0f);
 
 				fMixL[i] += fSample;
 				fMixR[i] += fSample;
