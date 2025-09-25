@@ -3,10 +3,11 @@
 ** Opal was released under the public domain, which means I can safely set
 ** a BSD 3-Clause license on this.
 **
-** Some notes about this version of Opal:
-**  It has been ported from C++ to C, with OPL3 stuff removed (ST3 uses OPL2).
-**  Some other small changes were also made, like adding some bugfixes from
-**  the Opal library OpenMPT uses (also BSD 3-Clause).
+** Modifications:
+** - It has been ported from C++ to C, with OPL3 stuff removed (ST3 uses OPL2)
+** - Interpolation has been changed from 2-point linear to 16-point windowed-sinc
+** - Added a ~3.18Hz DC-blocking high-pass filter (from Sound Blaster 1.0 schematics)
+** - Added some bugfixes from OpenMPT's custom Opal library (also BSD 3-Clause license)
 */
 
 #include <assert.h>
@@ -17,9 +18,9 @@
 #include <math.h>
 #include "opl2.h"
 
-#define CUBIC_PHASES 4096
-#define CUBIC_WIDTH 4
-#define CUBIC_WIDTH_BITS 2 /* log2(CUBIC_WIDTH) */
+#define SINC_PHASES 8192
+#define SINC_WIDTH 16
+#define SINC_WIDTH_BITS 4 /* log2(SINC_WIDTH) */
 
 #define ISA_OSCPIN_CLK (157500000.0 / 11.0) /* exact nominal clock */
 #define OPL2_OUTPUT_RATE (ISA_OSCPIN_CLK / 288.0) /* ~49715.9090Hz */
@@ -138,9 +139,9 @@ static const uint8_t levtab[128] = // 8bb: based on KSL table from ROM, but modi
 };
 
 static bool NoteSel, TremoloDepth, VibratoDepth;
-static int16_t SampleBuffer[CUBIC_WIDTH];
 static uint16_t Clock, TremoloClock, TremoloLevel, VibratoTick, VibratoClock;
-static float fCubicLUT[CUBIC_PHASES*CUBIC_WIDTH], fResampleRatio, fSampleAccum, fCubicPhaseMul;
+static float fSincLUT[SINC_PHASES*SINC_WIDTH], fSampleBuffer[SINC_WIDTH];
+static double dResampleRatio, dSampleAccum, dSincPhaseMul;
 static Channel_t Channel[NUM_CHANNELS];
 static Operator_t Operator[NUM_OPERATORS];
 static rcFilter_t filter;
@@ -339,7 +340,7 @@ static int16_t ChannelOutput(Channel_t *Ch)
 	return out;
 }
 
-static int16_t OutputOPL2Sample(void)
+static float OutputOPL2Sample(void)
 {
 	int32_t mix = 0;
 
@@ -366,7 +367,12 @@ static int16_t OutputOPL2Sample(void)
 		VibratoClock = (VibratoClock + 1) & 7;
 	}
 
-	return (int16_t)mix;
+	// 8bb: apply DC-centering high-pass filter
+	float fMix = (float)mix;
+	filter.lastSample = (filter.c1 * fMix) + (filter.c2 * filter.lastSample);
+	fMix -= filter.lastSample;
+
+	return fMix;
 }
 
 static void ComputePhaseStep(Channel_t *Ch)
@@ -527,29 +533,66 @@ static void SetReleaseRate(Channel_t *Ch, Operator_t *Op, uint16_t rate)
 	ComputeRates(Ch, Op);
 }
 
+// zeroth-order modified Bessel function of the first kind (series approximation)
+static inline double besselI0(double z)
+{
+#define EPSILON (1E-12) /* verified: lower than this makes no change when LUT output is single-precision float */
+
+	double s = 1.0, ds = 1.0, d = 2.0;
+	const double zz = z * z;
+
+	do
+	{
+		ds *= zz / (d * d);
+		s += ds;
+		d += 2.0;
+	}
+	while (ds > s*EPSILON);
+
+	return s;
+}
+
+static inline double sinc(double x)
+{
+	if (x == 0.0)
+	{
+		return 1.0;
+	}
+	else
+	{
+		x *= M_PI;
+		return sin(x) / x;
+	}
+}
+
 void OPL2_Init(int32_t audioOutputFrequency)
 {
 	const double dAudioRate = (audioOutputFrequency <= 0) ? OPL2_OUTPUT_RATE : audioOutputFrequency;
 
-	// 8bb: DC-blocking high-pass filter
-	const double cutoff = 3.1831; // 8bb: from Sound Blaster 1.0 RC values
-	const double a = 2.0 - cos((M_PI * cutoff) / dAudioRate);
-	filter.c2 = (float)(a - sqrt((a * a) - 1.0));
-	filter.c1 = 1.0f - filter.c2;
+	// 8bb: OPL DC-blocking high-pass filter (RC values taken from Sound Blaster 1.0 schematics)
+	double R = 10000.0; // 10K ohm
+	double C = 1.0e-5; // 10uF
+	double cutoff = 1.0 / (M_PI * R * C); // ~3.18Hz
+	const double a = 2.0 - cos((M_PI * cutoff) / OPL2_OUTPUT_RATE);
+	const double b = a - sqrt((a * a) - 1.0);
+	filter.c2 = (float)b;
+	filter.c1 = (float)(1.0 - b);
 	filter.lastSample = 0.0f;
 
-	// 8bb: calculate 4-point cubic spline LUT
-	float *fPtr = fCubicLUT;
-	for (int32_t i = 0; i < CUBIC_PHASES; i++)
+	// 8bb: calculate 16-point windowed-sinc LUT
+	const double kaiserBeta = 8.6;
+	const double besselI0Beta = 1.0 / besselI0(kaiserBeta);
+	for (int32_t i = 0; i < SINC_PHASES * SINC_WIDTH; i++)
 	{
-		const float x1 = i * (1.0f / CUBIC_PHASES);
-		const float x2 = x1 * x1; // x^2
-		const float x3 = x2 * x1; // x^3
+		const int32_t centeredPoint = (i & (SINC_WIDTH-1)) - ((SINC_WIDTH/2)-1);
+		const double phase = (i >> SINC_WIDTH_BITS) * (1.0 / SINC_PHASES);
+		const double x = centeredPoint - phase;
 
-		*fPtr++ = (x1 * -0.5f) + (x2 *  1.0f) + (x3 * -0.5f);
-		*fPtr++ =                (x2 * -2.5f) + (x3 *  1.5f) + 1.0f;
-		*fPtr++ = (x1 *  0.5f) + (x2 *  2.0f) + (x3 * -1.5f);
-		*fPtr++ =                (x2 * -0.5f) + (x3 *  0.5f);
+		// 8bb: Kaiser-Bessel window
+		const double n = x * (1.0 / (SINC_WIDTH/2));
+		const double window = besselI0(kaiserBeta * sqrt(1.0 - n * n)) * besselI0Beta;
+
+		fSincLUT[i] = (float)(sinc(x) * window);
 	}
 
 	TremoloClock = TremoloLevel = VibratoTick = VibratoClock = Clock = 0;
@@ -585,15 +628,14 @@ void OPL2_Init(int32_t audioOutputFrequency)
 		ComputeRates(OpCh, Op);
 	}
 
-	fResampleRatio = (float)(dAudioRate / OPL2_OUTPUT_RATE);
-	fCubicPhaseMul = CUBIC_PHASES / fResampleRatio;
+	dResampleRatio = dAudioRate / OPL2_OUTPUT_RATE;
+	dSincPhaseMul = SINC_PHASES / dResampleRatio;
 
-	// 8bb: pre-fill resampling cubic spline buffer
-	SampleBuffer[0] = 0;
-	SampleBuffer[1] = OutputOPL2Sample();
-	SampleBuffer[2] = OutputOPL2Sample();
-	SampleBuffer[3] = OutputOPL2Sample();
-	fSampleAccum = 0.0f;
+	// 8bb: pre-fill resampling sample buffer
+	for (int32_t i = 0; i < SINC_WIDTH; i++)
+			fSampleBuffer[i] = (i < (SINC_WIDTH/2)-1) ? 0.0f : OutputOPL2Sample();
+
+	dSampleAccum = 0.0;
 }
 
 void OPL2_WritePort(uint16_t reg_num, uint8_t val)
@@ -705,28 +747,28 @@ void OPL2_WritePort(uint16_t reg_num, uint8_t val)
 
 float OPL2_Output(void)
 {
-	// 8bb: changed interpolation from 2-point linear to 4-point cubic spline
+	// 8bb: changed interpolation from 2-point linear to 16-point windowed-sinc
 
-	while (fSampleAccum >= fResampleRatio)
+	while (dSampleAccum >= dResampleRatio)
 	{
-		fSampleAccum -= fResampleRatio;
+		dSampleAccum -= dResampleRatio;
 
-		SampleBuffer[0] = SampleBuffer[1];
-		SampleBuffer[1] = SampleBuffer[2];
-		SampleBuffer[2] = SampleBuffer[3];
-		SampleBuffer[3] = OutputOPL2Sample();
+		// 8bb: advance resampling ring buffer
+		for (int32_t i = 0; i < SINC_WIDTH-1; i++)
+			fSampleBuffer[i] = fSampleBuffer[1+i];
+		fSampleBuffer[SINC_WIDTH-1] = OutputOPL2Sample();
 	}
 
-	const uint32_t phase = (int32_t)(fSampleAccum * fCubicPhaseMul);
-	assert(phase < CUBIC_PHASES);
-	fSampleAccum += 1.0f;
+	const uint32_t phase = (int32_t)(dSampleAccum * dSincPhaseMul);
+	assert(phase < SINC_PHASES);
+	dSampleAccum += 1.0;
 
-	const int16_t *s = SampleBuffer;
-	const float *l = &fCubicLUT[phase << CUBIC_WIDTH_BITS];
-	float fOut = (s[0] * l[0]) + (s[1] * l[1]) + (s[2] * l[2]) + (s[3] * l[3]);
+	const float *s = fSampleBuffer;
+	const float *l = &fSincLUT[phase << SINC_WIDTH_BITS];
 
-	// 8bb: apply DC-centering high-pass filter (cutoff = ~3.18Hz)
-	fOut -= filter.lastSample = (filter.c1 * fOut) + (filter.c2 * filter.lastSample);
+	float fOut = 0.0f;
+	for (int32_t i = 0; i < SINC_WIDTH; i++)
+		fOut += s[i] * l[i];
 
 	return fOut;
 }
