@@ -22,3 +22,4 @@ st3play/vs2019_project/Debug/st3play.vcxproj.FileListAbsolute.txt
 *.wav
 *.it
 st3play/vs2019_project/Release/st3play.vcxproj.FileListAbsolute.txt
+*.s3m
