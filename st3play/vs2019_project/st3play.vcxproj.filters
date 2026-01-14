@@ -21,7 +21,7 @@
     <ClCompile Include="..\..\audiodrivers\winmm\winmm.c">
       <Filter>audiodrivers\winmm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\mixer\gus.c">
+    <ClCompile Include="..\..\mixer\gus_gf1.c">
       <Filter>mixer</Filter>
     </ClCompile>
     <ClCompile Include="..\..\mixer\sbpro.c">
@@ -44,21 +44,18 @@
     <ClCompile Include="..\..\digdata.c" />
     <ClCompile Include="..\..\digread.c" />
     <ClCompile Include="..\..\load.c" />
+    <ClCompile Include="..\..\mixer\sinc.c">
+      <Filter>mixer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\audiodrivers\winmm\winmm.h">
       <Filter>audiodrivers\winmm</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\mixer\gus.h">
-      <Filter>mixer</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\mixer\gusmixmacros.h">
+    <ClInclude Include="..\..\mixer\gus_gf1.h">
       <Filter>mixer</Filter>
     </ClInclude>
     <ClInclude Include="..\..\mixer\sbpro.h">
-      <Filter>mixer</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\mixer\sbpromixmacros.h">
       <Filter>mixer</Filter>
     </ClInclude>
     <ClInclude Include="..\..\opl2\opl2.h">
@@ -74,5 +71,8 @@
     <ClInclude Include="..\..\digcmd.h" />
     <ClInclude Include="..\..\digdata.h" />
     <ClInclude Include="..\..\digread.h" />
+    <ClInclude Include="..\..\mixer\sinc.h">
+      <Filter>mixer</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

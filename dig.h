@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "digdata.h"
+#include "mixer/sinc.h"
 
 // AUDIO DRIVERS
 #if defined AUDIODRIVER_SDL
@@ -16,15 +17,8 @@
 // Read "audiodrivers/how_to_write_drivers.txt"
 #endif
 
-#define ST3_FRAC_BITS 16
-
-// actual bits of delta/position precision in our mixer
-#define MIX_FRAC_BITS 32
-#define MIX_FRAC_SCALE (1ULL << MIX_FRAC_BITS)
-#define MIX_FRAC_MASK (MIX_FRAC_SCALE-1)
-
 #define CLAMP_VOLUME(x) \
-     if ((signed)x < 0) x =  0; \
+     if ((signed)x < 0) x = 0; \
 else if ((signed)x > 63) x = 63;
 
 void setglobalvol(int8_t vol);
@@ -41,19 +35,24 @@ void musmixer(int16_t *buffer, int32_t samples);
 
 // 8bb: my own custom routines
 
+#ifndef PI
+#define PI 3.14159265358979323846264338327950288
+#endif
+
 #define CLAMP(x, low, high) (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 #define CLAMP16(i) if ((int16_t)(i) != i) i = 0x7FFF ^ (i >> 31)
 
 extern bool WAVRender_Flag;
+extern float fSincLUT[SINC_PHASES*SINC_WIDTH];
+extern bool renderToWavFlag;
 
 void closeMusic(void);
 bool initMusic(int32_t audioFrequency, int32_t audioBufferSize);
 void togglePause(void);
-void setMixingVol(int32_t vol); // 0..256
 int32_t activePCMVoices(void);
 int32_t activeAdLibVoices(void);
 void resetAudioDither(void);
-bool renderToWAV(uint32_t audioRate, uint32_t bufferSize, const char *filenameOut);
+bool Dig_renderToWAV(uint32_t audioRate, uint32_t bufferSize, const char *filenameOut);
 
 // load.c
 bool load_st3_from_ram(const uint8_t *data, uint32_t dataLength, int32_t soundCardType);

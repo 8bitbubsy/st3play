@@ -12,7 +12,6 @@
 #define ACHANNELS 48
 // 8bb: custom defines
 
-#define PC_PIT_CLK (157500000.0 / 132.0) /* exact nominal clock */
 #define MAX_ORDERS 256
 #define MAX_INSTRUMENTS 99
 #define MAX_PATTERNS 100
@@ -42,10 +41,7 @@ typedef struct zchn_t
 	uint8_t apanpos;
 	int8_t *m_base;
 	uint8_t m_vol, m_oldvol;
-	uint32_t m_pos, m_oldpos, m_end, m_loop, m_speed;
-
-	// 8bb: for improved SB Pro mixer
-	uint64_t delta, frac;
+	uint32_t m_pos, m_poslow, m_oldpos, m_end, m_loop, m_speed;
 } zchn_t;
 
 #ifdef _MSC_VER
@@ -70,7 +66,7 @@ typedef struct ds_fileheader
 	uint8_t initspeed;
 	uint8_t inittempo;
 	uint8_t mastermul;
-	uint8_t ultraclick; // 8bb: number of GUS voices to allocate (16, 24, 32). Used for sample trigger fade-out (anti-click)
+	uint8_t ultraclick; // 8bb: number of GUS voices to allocate (16, 24, 32). Used for anti-click (volume ramping)
 	uint8_t defaultpan252;
 	uint8_t _reserved[10];
 	uint8_t channel[32]; // channel types
@@ -171,15 +167,12 @@ typedef struct audio_t
 {
 	volatile bool playing;
 	int32_t soundcardtype;
-	uint8_t mastermul; // 8bb: used for SB mixer
-	int32_t mixingVol;
-	uint32_t tickSampleCounter, samplesPerTickInt, notemixingspeed; // 8bb: ST3 SB/GUS mixing frequency
-	uint32_t GUSRate;
-	uint32_t outputFreq; // 8bb: actual mixing speed for our SB/GUS mixers
+	int8_t mastermul; // 8bb: used for SB mixer
+	uint32_t notemixingspeed; // 8bb: ST3 SB/GUS mixing frequency
+	uint32_t outputFreq; // 8bb: actual audio output speed
+	uint32_t tickSampleCounter, samplesPerTickInt, bpm2SamplesPerTickInt[256], bpm2SamplesPerTickFrac[256];
 	uint64_t tickSampleCounterFrac, samplesPerTickFrac;
-	float *fMixBufferL, *fMixBufferR;
-
-	double dMixNormalize, dBPM2SamplesPerTick, dPIT2SamplesPerTick, dHz2ST3Delta, dST3Delta2MixDelta;
+	float *fMixBufferL, *fMixBufferR, fMixingVol;
 } audio_t;
 
 // ------------------------------------------------------------

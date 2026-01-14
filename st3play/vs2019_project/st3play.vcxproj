@@ -28,8 +28,9 @@
     <ClCompile Include="..\..\digread.c" />
     <ClCompile Include="..\..\dig_gus.c" />
     <ClCompile Include="..\..\load.c" />
-    <ClCompile Include="..\..\mixer\gus.c" />
+    <ClCompile Include="..\..\mixer\gus_gf1.c" />
     <ClCompile Include="..\..\mixer\sbpro.c" />
+    <ClCompile Include="..\..\mixer\sinc.c" />
     <ClCompile Include="..\..\opl2\opl2.c" />
     <ClCompile Include="..\src\posix.c" />
     <ClCompile Include="..\src\st3play.c" />
@@ -43,10 +44,9 @@
     <ClInclude Include="..\..\digdata.h" />
     <ClInclude Include="..\..\digread.h" />
     <ClInclude Include="..\..\dig_gus.h" />
-    <ClInclude Include="..\..\mixer\gus.h" />
-    <ClInclude Include="..\..\mixer\gusmixmacros.h" />
+    <ClInclude Include="..\..\mixer\gus_gf1.h" />
     <ClInclude Include="..\..\mixer\sbpro.h" />
-    <ClInclude Include="..\..\mixer\sbpromixmacros.h" />
+    <ClInclude Include="..\..\mixer\sinc.h" />
     <ClInclude Include="..\..\opl2\opl2.h" />
     <ClInclude Include="..\src\posix.h" />
   </ItemGroup>

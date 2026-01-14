@@ -140,13 +140,15 @@ bool load_st3_from_ram(const uint8_t *data, uint32_t dataLength, int32_t soundCa
 	if (song.header.ordnum > MAX_ORDERS || song.header.insnum > MAX_INSTRUMENTS || song.header.patnum > MAX_PATTERNS)
 		goto loadError; // incompatible S3M
 
+	bool songMadeWithST3 = (song.header.cwtv >> 12) == 1;
+
 	song.header.name[27] = '\0'; // 8bb: added sanitation, so that it's always safe to print this string
 
 	if (song.header.cwtv == 0x1300)
 		song.header.flags |= 64; // 8bb: fast volslide flag
 
-	if (song.header.cwtv < 0x1310)
-		song.header.ultraclick = 16;
+	if (!songMadeWithST3 || song.header.cwtv < 0x1310)
+		song.header.ultraclick = 16; // 8bb: controls the number of GUS voices to use
 
 	if (song.header.ffv == 1)
 	{
@@ -219,7 +221,7 @@ bool load_st3_from_ram(const uint8_t *data, uint32_t dataLength, int32_t soundCa
 			if (offs+ins->length > dataLength) // 8bb: dataLength is the filesize
 				ins->length = dataLength-offs;
 
-			ins->baseptr = (int8_t *)malloc(ins->length+512 + 1); // 8bb: added +1 for fixed interpolation tap
+			ins->baseptr = (int8_t *)malloc(ins->length+512);
 			if (ins->baseptr == NULL)
 				goto loadError;
 
@@ -246,8 +248,6 @@ bool load_st3_from_ram(const uint8_t *data, uint32_t dataLength, int32_t soundCa
 	** Apparently the guspos field in the sample headers are all 1 when saved
 	** by ST3 w/ SB. (or all zeroes in some very early ST3.00 modules).
 	*/
-
-	bool songMadeWithST3 = (song.header.cwtv >> 12) == 1;
 	if (songMadeWithST3 && song.header.cwtv == 0x1320)
 	{
 		/* 8bb: Some non-ST3 trackers spoof as ST3.20, so do

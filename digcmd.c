@@ -285,36 +285,14 @@ static void s_settempo(zchn_t *ch)
 		settempo(ch->info);
 }
 
-void settempo(int32_t bpm)
+void settempo(uint8_t bpm)
 {
-	int64_t samplesPerTick64;
-
-	bpm &= 0xFF; // 8bb: input is supposed to be uint8_t, so mask just in case
-
 	// 8bb: ST3+SB + Txx <= 0x20 = do nothing
 	if (audio.soundcardtype == SOUNDCARD_SBPRO && bpm <= 0x20)
 		return;
 
-	// 8bb: ST3+GUS + Txx <= 0x20 = clamp to 47.5BPM (19Hz)
-
-	// 8bb: ST3 uses the PIT timer chip in GUS mode
-	if (audio.soundcardtype == SOUNDCARD_GUS)
-	{
-		int32_t hz = (bpm * 50) / 125;
-		if (hz < 19) // 8bb: ST3 does this to fit the PIT period range (this limits low BPM to 47.5)
-			hz = 19;
-
-		const int32_t PIT_Period = 1193180 / hz; // 8bb: ST3 off-by-one PIT clock constant
-
-		samplesPerTick64 = (int64_t)((audio.dPIT2SamplesPerTick * PIT_Period) + 0.5); // 8bb: rounded 32.32fp
-	}
-	else
-	{
-		samplesPerTick64 = (int64_t)((audio.dBPM2SamplesPerTick / bpm) + 0.5); // 8bb: rounded 32.32fp
-	}
-
-	audio.samplesPerTickInt = samplesPerTick64 >> 32;
-	audio.samplesPerTickFrac = (uint32_t)samplesPerTick64;
+	audio.samplesPerTickInt = audio.bpm2SamplesPerTickInt[bpm];
+	audio.samplesPerTickFrac = audio.bpm2SamplesPerTickFrac[bpm];
 }
 
 void setspeed(uint8_t val)

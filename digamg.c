@@ -57,7 +57,7 @@ void doamiga(zchn_t *ch)
 					else // no loop
 					{
 						uint16_t length = (uint16_t)ins->length;
-						length += 32; // extra fadeout for GUS (8bb: Also applies to SB!. Also can overflow!)
+						length += 32; // extra fadeout for GUS (8bb: Also applies to SB! Also can overflow!)
 
 						ch->m_end = length;
 						ch->m_loop = 65535; // 8bb: disable loop
@@ -91,7 +91,7 @@ void doamiga(zchn_t *ch)
 			// end sample
 
 			ch->m_pos = 1;
-			ch->frac = 0; // 8bb: clear fractional part of sampling position
+			ch->m_poslow = 0;
 
 			ch->aspd = 0;
 			setspd(ch);
@@ -111,7 +111,7 @@ void doamiga(zchn_t *ch)
 			{
 				ch->m_pos = ch->astartoffset;
 				ch->m_oldpos = 0x12345678; // 8bb: this forces a GUS retrigger
-				ch->frac = 0; // 8bb: clear fractional part of sampling position
+				ch->m_poslow = 0;
 			}
 
 			// calc note speed

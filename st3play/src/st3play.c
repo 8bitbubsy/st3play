@@ -1,15 +1,11 @@
-/* Example program for interfacing with st3play.
-**
-** Please excuse my disgusting platform-independant code here...
-*/
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "../../dig.h"
-#include "../../mixer/gus.h"
+#include "../../mixer/sbpro.h"
+#include "../../mixer/gus_gf1.h"
 #include "posix.h"
 
 #define CLAMP(x, low, high) (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
@@ -24,7 +20,7 @@
 #define DEFAULT_WAVRENDER_MODE_FLAG false
 
 // default settings
-static bool renderToWavFlag = DEFAULT_WAVRENDER_MODE_FLAG;
+bool renderToWavFlag = DEFAULT_WAVRENDER_MODE_FLAG;
 static int32_t soundCardType = DEFAULT_SOUNDCARD;
 static int32_t mixingVolume = DEFAULT_MIX_VOL;
 static int32_t mixingFrequency = DEFAULT_MIX_FREQ;
@@ -46,7 +42,7 @@ void wavRecordingThread(void *arg)
 void *wavRecordingThread(void *arg)
 #endif
 {
-	renderToWAV(mixingFrequency, mixingBufferSize, WAVRenderFilename);
+	Dig_renderToWAV(mixingFrequency, mixingBufferSize, WAVRenderFilename);
 #ifndef _WIN32
 	return NULL;
 #endif
@@ -78,7 +74,8 @@ int main(int argc, char *argv[])
 	handleArguments(argc, argv);
 #endif
 
-	WAVRender_Flag = renderToWavFlag; // set WAV flag in dig.c
+	audio.fMixingVol = mixingVolume / (256.0f / 32768.0f);
+
 	if (!initMusic(mixingFrequency, mixingBufferSize))
 	{
 		printf("Error: Out of memory while setting up replayer!\n");
@@ -90,9 +87,6 @@ int main(int argc, char *argv[])
 		printf("Error: Couldn't load song!\n");
 		return 1;
 	}
-
-	if (mixingVolume != DEFAULT_MIX_VOL)
-		setMixingVol(mixingVolume);
 
 	if (soundCardType == -1)
 	{
@@ -127,9 +121,10 @@ int main(int argc, char *argv[])
 	if (audio.soundcardtype == SOUNDCARD_GUS)
 		printf("Sound card: Gravis Ultrasound\n");
 	else
-		printf("Sound card: Sound Blaster Pro\n");
+		printf("Sound card: Sound Blaster Pro (%s)\n",  SBPro_StereoMode() ? "stereo" : "mono");
 
-	printf("Mixing frequency: %dHz\n", audio.outputFreq);
+	printf("Internal mixing frequency: %.2fHz\n", (audio.soundcardtype == SOUNDCARD_GUS) ? GUS_GetOutputRate() : SBPro_GetOutputRate());
+	printf("Audio output frequency: %dHz\n", audio.outputFreq);
 	printf("ST3 stereo mode: %s\n", song.stereomode ? "Yes" : "No");
 	if (audio.soundcardtype == SOUNDCARD_SBPRO)
 		printf("Master volume: %d/127\n", audio.mastermul);
@@ -301,6 +296,16 @@ static int32_t renderToWav(void)
 	strcpy(WAVRenderFilename, filename);
 	strcat(WAVRenderFilename, ".wav");
 
+	/* The WAV render loop also sets/listens/clears "WAVRender_Flag", but let's set it now
+	** since we're doing the render in a separate thread (to be able to force-abort it if
+	** the user is pressing a key).
+	**
+	** If you don't want to create a thread for the render, you don't have to
+	** set this flag, and you just call Dig_RenderToWAV("output.wav") directly.
+	** Though, some songs will render forever (if they Bxx-jump to a previous order),
+	** thus having this in a thread is recommended so that you can force-abort it, if stuck.
+	*/
+	WAVRender_Flag = true;
 	if (!createSingleThread(wavRecordingThread))
 	{
 		printf("Error: Couldn't create WAV rendering thread!\n");
@@ -331,4 +336,3 @@ static int32_t renderToWav(void)
 
 	return 0;
 }
-

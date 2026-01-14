@@ -11,13 +11,13 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include "digdata.h"
 #include "dig.h"
 #include "opl2/opl2.h"
 
 static const uint8_t emptyadlibins[12] = { 0,0,63,63,0,0,0,0,0,0,0,0 };
 static const uint8_t adlibiadd[9] = { 0,1,2,8,9,10,16,17,18 }; // melodic sounds 0..8
-
 static uint8_t adlibmem[256];
 
 static void outaw(uint8_t reg, uint8_t data)
@@ -32,7 +32,7 @@ static void outaw(uint8_t reg, uint8_t data)
 
 static void outnote(uint8_t channel, uint16_t note)
 {
-	outaw(0xA0+channel, note & 0xFF);
+	outaw(0xA0+channel, (uint8_t)note);
 	outaw(0xB0+channel, note >> 8);
 }
 
@@ -69,8 +69,7 @@ static void adlibloadins(uint8_t channel, const uint8_t *adLibIns)
 
 void initadlib(void)
 {
-	for (int32_t i = 0; i < 256; i++)
-		adlibmem[i] = 0xFC;
+	memset(adlibmem, 0xFC, 256);
 
 	outaw(0x01, 0x20);
 	outaw(0x08, 0x00);

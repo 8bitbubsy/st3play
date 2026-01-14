@@ -15,25 +15,31 @@
  **
  ***********************************************************************/
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "dig.h"
 #include "digcmd.h"
 #include "digread.h"
 #include "digdata.h"
 #include "dig_gus.h"
 #include "digadl.h"
-#include "mixer/gus.h"
+#include "mixer/gus_gf1.h"
 #include "mixer/sbpro.h"
+#include "mixer/sinc.h"
 #include "opl2/opl2.h"
 
 static uint32_t randSeed;
-static double dPrngStateL, dPrngStateR;
+static float fPrngStateL, fPrngStateR;
 
-bool WAVRender_Flag; // global
+// globals
+bool WAVRender_Flag;
+float fSincLUT[SINC_PHASES*SINC_WIDTH];
+// ----------------
 
 static void setmasterflags(void)
 {
@@ -58,22 +64,9 @@ static void setmasterflags(void)
 
 static void checkheader(void)
 {
-	// ST3.21 defaults (not actually set in this function, but let's do it here)
-	song.masterflags = 0;
-	audio.mastermul = 48;
-	song.header.ultraclick = 16;
-	setspeed(6);
-	settempo(125);
-	setglobalvol(64);
-	setMixingVol(audio.mixingVol);
-	// --------------------------
-
-	song.stereomode = false;
 	if (song.header.mastermul != 0)
 	{
 		audio.mastermul = song.header.mastermul & 127;
-
-		song.stereomode = !!(song.header.mastermul & 128);
 		if (song.stereomode) // multiply mastermul by 11/8 -2 (30->41) {if STEREO/SBPRO}
 		{
 			uint16_t mastermul = audio.mastermul;
@@ -87,21 +80,27 @@ static void checkheader(void)
 
 			audio.mastermul = (uint8_t)mastermul;
 		}
-
-		setMixingVol(audio.mixingVol);
 	}
 
 	if (song.header.inittempo != 0)
 		settempo(song.header.inittempo);
+	else
+		settempo(125);
 
 	if (song.header.initspeed != 255)
 		setspeed(song.header.initspeed);
+	else
+		setspeed(6);
 
 	if (song.header.globalvol != 255)
 		setglobalvol(song.header.globalvol);
+	else
+		setglobalvol(64);
 
 	if (song.header.flags != 255)
 		setmasterflags();
+	else
+		song.masterflags = 0;
 
 	if (song.header.ultraclick != 16 && song.header.ultraclick != 24 && song.header.ultraclick != 32)
 		song.header.ultraclick = 16;
@@ -150,13 +149,10 @@ void shutupsounds(void)
 		ch->m_oldpos = 0xFFFFFFFF; // 8bb: added this (also for GUS)
 	}
 
-	if (audio.soundcardtype == SOUNDCARD_GUS)
-	{
-		gcmd_inittables();
-		GUS_StopVoices();
-	}
-
 	song.lastachannelused = 1;
+
+	if (audio.soundcardtype == SOUNDCARD_GUS)
+		gcmd_inittables();
 
 	unlockMixer();
 }
@@ -300,23 +296,26 @@ void setspd(zchn_t *ch)
 			ch->aspd = tmpspd;
 	}
 
-	// 8bb: Yes, 14317056. Not 14317456 (8363*1712)
-	const int32_t hz = 14317056UL / (uint32_t)tmpspd;
+	const uint32_t hz = 14317056 / (uint32_t)tmpspd;
+	const uint16_t hzHi = hz >> 16;
+	const uint16_t hzLo = (uint16_t)hz;
 
 	// 8bb: for AdLib
-	ch->addherzhi = hz >> 16;
-	ch->addherzlo = hz & 0xFFFF;
+	ch->addherzhi = hzHi;
+	ch->addherzlo = hzLo;
 	// ------------------
 
-	/* 8bb: Use double-precision float for fast delta calculation.
-	** Also eliminates the need for a 64-bit division if 'hz' is higher
-	** than 65535. This is still bit-accurate to how ST3 calculates the
-	** 16.16fp delta.
-	*/
-	ch->m_speed = (int32_t)(hz * audio.dHz2ST3Delta); // 8bb: 16.16fp
+	if (hz <= 0xFFFF)
+	{
+		ch->m_speed = (hz << 16) / audio.notemixingspeed;
+	}
+	else
+	{
+		const uint16_t quotient  = (uint16_t)(hz / audio.notemixingspeed);
+		const uint16_t remainder = (uint16_t)(hz % audio.notemixingspeed);
 
-	// 8bb: calculate delta for our mixer (we need this extra step in st3play)
-	ch->delta = (uint64_t)((int32_t)ch->m_speed * audio.dST3Delta2MixDelta);
+		ch->m_speed = (quotient << 16) | ((remainder << 16) / audio.notemixingspeed);
+	}
 }
 
 void setvol(zchn_t *ch)
@@ -371,7 +370,7 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 			audio.tickSampleCounter = audio.samplesPerTickInt;
 
 			audio.tickSampleCounterFrac += audio.samplesPerTickFrac;
-			if (audio.tickSampleCounterFrac >= UINT32_MAX)
+			if (audio.tickSampleCounterFrac > UINT32_MAX)
 			{
 				audio.tickSampleCounterFrac &= UINT32_MAX;
 				audio.tickSampleCounter++;
@@ -384,21 +383,13 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 
 		// 8bb: mix PCM voices
 		if (audio.soundcardtype == SOUNDCARD_GUS)
-			GUS_Mix(fMixL, fMixR, samplesToMix);
+			GUS_RenderSamples(fMixL, fMixR, samplesToMix);
 		else
-			SBPro_Mix(fMixL, fMixR, samplesToMix);
+			SBPro_RenderSamples(fMixL, fMixR, samplesToMix);
 
 		// 8bb: mix AdLib (OPL2) voices
 		if (song.adlibused)
-		{
-			for (uint32_t i = 0; i < samplesToMix; i++)
-			{
-				const float fSample = OPL2_Output() * (2.0f / 32768.0f);
-
-				fMixL[i] += fSample;
-				fMixR[i] += fSample;
-			}
-		}
+			OPL2_MixSamples(fMixL, fMixR, samplesToMix);
 
 		fMixL += samplesToMix;
 		fMixR += samplesToMix;
@@ -407,25 +398,25 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 		samplesLeft -= samplesToMix;
 	}
 
-	double dOut, dPrng;
+	float fOut, fPrng;
 	int32_t out32;
 	for (int32_t i = 0; i < samples; i++)
 	{
 		// 8bb: left channel - 1-bit triangular dithering
-		dPrng = random32() * (1.0 / (UINT32_MAX+1.0)); // -0.5 .. 0.5
-		dOut = (double)audio.fMixBufferL[i] * audio.dMixNormalize;
-		dOut = (dOut + dPrng) - dPrngStateL;
-		dPrngStateL = dPrng;
-		out32 = (int32_t)dOut;
+		fPrng = (float)random32() * (1.0f / (UINT32_MAX+1.0f)); // -0.5f .. 0.5f
+		fOut = audio.fMixBufferL[i] * audio.fMixingVol;
+		fOut = (fOut + fPrng) - fPrngStateL;
+		fPrngStateL = fPrng;
+		out32 = (int32_t)fOut;
 		CLAMP16(out32);
 		*buffer++ = (int16_t)out32;
 
 		// 8bb: right channel - 1-bit triangular dithering
-		dPrng = random32() * (1.0 / (UINT32_MAX+1.0)); // -0.5 .. 0.5
-		dOut = (double)audio.fMixBufferR[i] * audio.dMixNormalize;
-		dOut = (dOut + dPrng) - dPrngStateR;
-		dPrngStateR = dPrng;
-		out32 = (int32_t)dOut;
+		fPrng = (float)random32() * (1.0f / (UINT32_MAX+1.0f)); // -0.5f .. 0.5f
+		fOut = audio.fMixBufferR[i] * audio.fMixingVol;
+		fOut = (fOut + fPrng) - fPrngStateR;
+		fPrngStateR = fPrng;
+		out32 = (int32_t)fOut;
 		CLAMP16(out32);
 		*buffer++ = (int16_t)out32;
 
@@ -454,44 +445,74 @@ bool zplaysong(int16_t order)
 
 	song.adlibused = false; // 8bb: set in digadl.c if AdLib channels are handled
 
-	/* 8bb: Set ST3 mixing frequency value.
-	** This is only used to calculate a 16.16fp delta value in setspd() (dig.c),
-	** then we convert it to work with the actual mixing rate we use in st3play.
-	*/
-	if (audio.soundcardtype == SOUNDCARD_GUS)
-		audio.notemixingspeed = 38587; // 8bb: Yes, ST3 sets this to 38587 regardless of active GUS voices.
-	else
-		audio.notemixingspeed = song.stereomode ? 22000 : 43478;
-
-	// 8bb: use floating-point for convenience
-
-	audio.dBPM2SamplesPerTick = (audio.outputFreq * 2.5) * (UINT32_MAX+1.0);
-	audio.dPIT2SamplesPerTick = (audio.outputFreq / (double)PC_PIT_CLK) * (UINT32_MAX+1.0);
-	audio.dHz2ST3Delta = (double)(1 << ST3_FRAC_BITS) / audio.notemixingspeed;
-
-	const double dFreqRatio = (double)audio.notemixingspeed / audio.outputFreq;
-	audio.dST3Delta2MixDelta = (dFreqRatio / (double)(1 << ST3_FRAC_BITS)) * (double)(1ULL << MIX_FRAC_BITS);
+	makeSincKernel(fSincLUT, 1.0);
 
 	OPL2_Init(audio.outputFreq);
-
 	initadlib(); // initialize adlib
+
+	song.stereomode = !!(song.header.mastermul & 128);
+	if (audio.soundcardtype == SOUNDCARD_GUS)
+		audio.notemixingspeed = 38587; // 8bb: yes, ST3 sets this to 38587 regardless of active GUS voices
+	else
+		audio.notemixingspeed = song.stereomode ? 22000 : 43478; // 8bb: first constant is off! :-(
+
+	// 8bb: calculate bpm2SamplesPerTick table
+	for (int32_t i = 0; i <= 255; i++)
+	{
+		const int32_t bpm = (i == 0) ? 1 : i;
+
+		double dHz;
+		if (audio.soundcardtype == SOUNDCARD_GUS)
+		{
+			// 8bb: calculate ST3-lossy value
+			int32_t hz = (bpm * 50) / 125;
+			if (hz < 19) // 8bb: ST3 does this to fit the PIT period range (this limits low BPM to 47.5)
+				hz = 19;
+
+			const int32_t PIT_Period = 1193180 / hz; // 8bb: ST3 off-by-one PIT clock constant
+
+			// 8bb: convert to actual hertz
+			const double dNominalPITClk = 157500000.0 / 132.0;
+			dHz = dNominalPITClk / (double)PIT_Period;
+		}
+		else
+		{
+			// 8bb: calculate ST3-lossy value
+			const int32_t samplesPerTick = (audio.notemixingspeed * 125) / (bpm * 50);
+
+			// 8bb: convert to actual hertz
+			dHz = audio.notemixingspeed / (double)samplesPerTick;
+		}
+
+		const double dSamplesPerTick = audio.outputFreq / dHz;
+		const uint64_t samplesPerTick64 = (uint64_t)((dSamplesPerTick * (UINT32_MAX+1.0)) + 0.5); // 8bb: rounded 32.32fp
+
+		audio.bpm2SamplesPerTickInt[i] = samplesPerTick64 >> 32;
+		audio.bpm2SamplesPerTickFrac[i] = (uint32_t)samplesPerTick64;
+	}
+
 	loadheaderparms();
 	initmodule();
+	loadheaderpans();
 
 	if (audio.soundcardtype == SOUNDCARD_GUS)
 	{
-		/* 8bb: ST3 handles song.header.ultraclick here (amount of GUS voices), but
-		** we don't use that. We always use 32 GUS voices, because our GUS emulator
-		** doesn't degrade the quality based on number of allocated voices. Also, the
-		** ST3 GUS driver is a little buggy, so allocating 32 voices makes it not glitch out.
-		*/
-		GUS_Reset(audio.outputFreq);
-		gcmd_setvoices();
-	}
+#if 0
+		uint8_t numGUSVoices = song.header.ultraclick;
+#else
+		// 8bb: hack for buggy ST3 GUS driver
+		uint8_t numGUSVoices = 32;
+#endif
 
-	loadheaderpans();
-	if (audio.soundcardtype == SOUNDCARD_GUS)
-		gcmd_setstereo(song.stereomode);
+		GUS_Init(audio.outputFreq, numGUSVoices);
+		gcmd_setvoices(numGUSVoices);
+		gcmd_setstereo();
+	}
+	else if (audio.soundcardtype == SOUNDCARD_SBPRO)
+	{
+		const uint8_t timeConstant = song.stereomode ? 210 : 233;
+		SBPro_Init(audio.outputFreq, timeConstant, song.stereomode);
+	}
 
 	// 8bb: added these two for protection
 	song.np_patseg = NULL;
@@ -525,20 +546,7 @@ static void freeinsmem(int32_t a)
 void resetAudioDither(void)
 {
 	randSeed = 0x12345000;
-	dPrngStateL = dPrngStateR = 0.0;
-}
-
-void setMixingVol(int32_t vol) // 0..256
-{
-	vol = CLAMP(vol, 0, 256);
-	audio.mixingVol = vol; // copy of volume, not used in mixer
-
-	if (audio.soundcardtype == SOUNDCARD_GUS)
-		audio.mastermul = 48;
-
-	vol *= audio.mastermul; // 0..32512
-
-	audio.dMixNormalize = 32768.0 * (vol * (1.0 / (256.0 * 128.0)));
+	fPrngStateL = fPrngStateR = 0.0f;
 }
 
 void closeMusic(void)
@@ -582,13 +590,11 @@ bool initMusic(int32_t audioFrequency, int32_t audioBufferSize)
 {
 	audio.outputFreq = CLAMP(audioFrequency, 8000, 768000);
 
-	if (!WAVRender_Flag)
+	if (!renderToWavFlag)
 		closeMixer();
 
 	closeMusic();
 	memset(song._zchn, 0, sizeof (song._zchn));
-
-	setMixingVol(256);
 
 	// zero tick sample counter so that it will instantly initiate a tick
 	audio.tickSampleCounterFrac = audio.tickSampleCounter = 0;
@@ -602,7 +608,7 @@ bool initMusic(int32_t audioFrequency, int32_t audioBufferSize)
 		return false;
 	}
 
-	if (!WAVRender_Flag)
+	if (!renderToWavFlag)
 	{
 		if (!openMixer(audio.outputFreq, audioBufferSize))
 		{
@@ -625,7 +631,7 @@ int32_t activePCMVoices(void)
 {
 	if (audio.soundcardtype == SOUNDCARD_GUS)
 	{
-		return activeGUSVoices();
+		return GUS_GetNumberOfRunningVoices();
 	}
 	else
 	{
@@ -693,12 +699,7 @@ static void WAV_WriteEnd(FILE *f, uint32_t size)
 	fwrite(&size, 4, 1, f);
 }
 
-void WAVRender_Abort(void)
-{
-	WAVRender_Flag = false;
-}
-
-bool renderToWAV(uint32_t audioRate, uint32_t bufferSize, const char *filenameOut)
+bool Dig_renderToWAV(uint32_t audioRate, uint32_t bufferSize, const char *filenameOut)
 {
 	int16_t *AudioBuffer = (int16_t *)malloc(bufferSize * 2 * sizeof (int16_t));
 	if (AudioBuffer == NULL)
@@ -718,12 +719,14 @@ bool renderToWAV(uint32_t audioRate, uint32_t bufferSize, const char *filenameOu
 	WAV_WriteHeader(f, audioRate);
 	uint32_t TotalSamples = 0;
 
+	WAVRender_Flag = true;
 	while (WAVRender_Flag)
 	{
 		musmixer(AudioBuffer, bufferSize);
 		fwrite(AudioBuffer, 2, bufferSize * 2, f);
 		TotalSamples += bufferSize * 2;
 	}
+	WAVRender_Flag = false;
 
 	WAV_WriteEnd(f, TotalSamples * sizeof (int16_t));
 	free(AudioBuffer);
