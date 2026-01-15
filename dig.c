@@ -497,12 +497,7 @@ bool zplaysong(int16_t order)
 
 	if (audio.soundcardtype == SOUNDCARD_GUS)
 	{
-#if 0
 		uint8_t numGUSVoices = song.header.ultraclick;
-#else
-		// 8bb: hack for buggy ST3 GUS driver
-		uint8_t numGUSVoices = 32;
-#endif
 
 		GUS_Init(audio.outputFreq, numGUSVoices);
 		gcmd_setvoices(numGUSVoices);

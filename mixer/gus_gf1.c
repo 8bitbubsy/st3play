@@ -167,14 +167,8 @@ void GUS_Init(int32_t audioOutputFrequency, int32_t numVoices)
 
 	gv = &gusVoice[0]; // currently selected voice = first voice
 
-#if 0
 	activeVoices = numVoices;
-	dGUSOutputRate = (14.0 * 44100.0) / activeVoices;
-#else
-	// hack for buggy ST3 GUS driver
-	activeVoices = 32;
-	dGUSOutputRate = (14.0 * 44100.0) / 16; // 38587.5Hz (ST3 default)
-#endif
+	dGUSOutputRate = (double)(14 * 44100) / activeVoices;
 
 	resamplingNeeded = ((double)audioOutputFrequency != dGUSOutputRate);
 	if (resamplingNeeded)

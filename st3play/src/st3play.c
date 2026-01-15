@@ -119,11 +119,10 @@ int main(int argc, char *argv[])
 	printf("Song length: %d/255\n", song.header.ordnum);
 
 	if (audio.soundcardtype == SOUNDCARD_GUS)
-		printf("Sound card: Gravis Ultrasound\n");
+		printf("Sound card: Gravis Ultrasound (%d voices - %.2fHz)\n", GUS_GetNumberOfVoices(), GUS_GetOutputRate());
 	else
-		printf("Sound card: Sound Blaster Pro (%s)\n",  SBPro_StereoMode() ? "stereo" : "mono");
+		printf("Sound card: Sound Blaster Pro (%s - %.2fHz)\n",  SBPro_StereoMode() ? "stereo" : "mono", SBPro_GetOutputRate());
 
-	printf("Internal mixing frequency: %.2fHz\n", (audio.soundcardtype == SOUNDCARD_GUS) ? GUS_GetOutputRate() : SBPro_GetOutputRate());
 	printf("Audio output frequency: %dHz\n", audio.outputFreq);
 	printf("ST3 stereo mode: %s\n", song.stereomode ? "Yes" : "No");
 	if (audio.soundcardtype == SOUNDCARD_SBPRO)

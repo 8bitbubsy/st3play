@@ -3,8 +3,7 @@
  **  Gravis Ultrasound driver
  **
  ***********************************************************************/
- 
-#include <assert.h>
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -73,7 +72,6 @@ void gcmd_setvoices(uint8_t numVoices)
 void gcmd_setstereo(void) // sets for 16 first dma channels
 {
 	memset(stchannelpan, 0, sizeof (stchannelpan));
-
 	for (int32_t i = 0; i < 16; i++)
 	{
 		uint8_t pan;
@@ -191,7 +189,6 @@ void gcmd_update(zchn_t *ch)
 
 	if (ch->aguschannel >= 0)
 	{
-		assert(ch->aguschannel < 32);
 		GUS_VoiceSelect(ch->aguschannel);
 
 		if (ch->m_oldpos == ch->m_pos)
@@ -208,7 +205,6 @@ void gcmd_update(zchn_t *ch)
 			}
 
 			// hz
-#if 0
 			if (g_maxvoices == 16)
 				GUS_SetFrequency((uint16_t)(ch->m_speed >> 6));
 			else if (g_maxvoices == 24)
@@ -217,10 +213,6 @@ void gcmd_update(zchn_t *ch)
 				GUS_SetFrequency((uint16_t)(ch->m_speed >> 5));
 			else
 				GUS_SetFrequency((uint16_t)ch->m_speed);
-#else
-			// 8bb: hack for buggy ST3 GUS driver
-			GUS_SetFrequency((uint16_t)(ch->m_speed >> 6));
-#endif
 
 			setvolslide(ch, ch->m_oldvol, ch->m_vol);
 
@@ -288,7 +280,7 @@ void gcmd_update(zchn_t *ch)
 	else
 		GUS_SetBalance(stchannelpan[ch->channelnum]);
 
-	GUS_SetVoiceCtrl(0b00000010); // stop (8bb: Again. Why?)
+	//GUS_SetVoiceCtrl(0b00000010); // stop (8bb: Again. Why?)
 
 	GUS_SetEndAddress(ch->m_base + ch->m_end); // loop end
 
