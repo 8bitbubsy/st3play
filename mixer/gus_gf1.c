@@ -221,7 +221,7 @@ static void outputGUSSample(float *outL, float *outR)
 		if (v->SACI & SACI_STOP) v->SACI |= SACI_STOPPED;
 		if (v->SVCI & SVCI_STOP) v->SVCI |= SVCI_STOPPED;
 
-		if (v->SA == NULL || v->SAE == NULL || ((v->SACI & SACI_LOOP_FWD) && v->SAS != NULL))
+		if (v->SA == NULL || v->SAE == NULL || ((v->SACI & SACI_LOOP_FWD) && v->SAS == NULL))
 			v->SACI |= SACI_STOPPED;
 		
 		if (!(v->SACI & SACI_STOPPED)) // run sample engine
