@@ -136,7 +136,8 @@ static const uint8_t levtab[128] = // 8bb: based on KSL table from ROM, but modi
 
 static bool NoteSel, TremoloDepth, VibratoDepth;
 static uint16_t Clock, TremoloClock, TremoloLevel, VibratoTick, VibratoClock;
-static float fOPLSincLUT[SINC_WIDTH*SINC_PHASES], fSampleBuffer[SINC_WIDTH], fResampleRatio, fSampleAccum, fSincPhaseMul;
+static float fSampleBuffer[SINC_WIDTH];
+static double dResampleRatio, dSampleAccum, dSincPhaseMul;
 static Channel_t Channel[NUM_CHANNELS];
 static Operator_t Operator[NUM_OPERATORS];
 static rcFilter_t filter;
@@ -544,15 +545,6 @@ void OPL2_Init(int32_t audioOutputFrequency)
 	filter.c1 = (float)(1.0 - b);
 	filter.lastSample = 0.0f;
 
-	// 8bb: make windowed-sinc resampling kernel
-	double dSincCutoff = audioOutputFrequency / OPL2_OUTPUT_RATE;
-	if (dSincCutoff > 1.0)
-		dSincCutoff = 1.0;
-	makeSincKernel(fOPLSincLUT, dSincCutoff);
-	fResampleRatio = (float)(audioOutputFrequency / OPL2_OUTPUT_RATE);
-	fSincPhaseMul = SINC_PHASES / fResampleRatio;
-	fSampleAccum = 0.0f;
-
 	TremoloClock = TremoloLevel = VibratoTick = VibratoClock = Clock = 0;
 	NoteSel = TremoloDepth = VibratoDepth = false;
 
@@ -585,6 +577,10 @@ void OPL2_Init(int32_t audioOutputFrequency)
 		Channel_t *OpCh = (Channel_t *)Op->ParentChan;
 		ComputeRates(OpCh, Op);
 	}
+
+	dResampleRatio = (double)audioOutputFrequency / OPL2_OUTPUT_RATE;
+	dSincPhaseMul = SINC_PHASES / dResampleRatio;
+	dSampleAccum = 0.0;
 }
 
 void OPL2_WritePort(uint16_t reg_num, uint8_t val)
@@ -696,9 +692,9 @@ void OPL2_WritePort(uint16_t reg_num, uint8_t val)
 
 static float outputOPL2Sample(void)
 {
-	while (fSampleAccum >= fResampleRatio)
+	while (dSampleAccum >= dResampleRatio)
 	{
-		fSampleAccum -= fResampleRatio;
+		dSampleAccum -= dResampleRatio;
 
 		// 8bb: advance resampling ring buffer
 		for (int32_t i = 0; i < SINC_WIDTH-1; i++)
@@ -706,12 +702,12 @@ static float outputOPL2Sample(void)
 		fSampleBuffer[SINC_WIDTH-1] = OutputOPL2Sample();
 	}
 
-	const uint32_t phase = (int32_t)(fSampleAccum * fSincPhaseMul);
+	const uint32_t phase = (int32_t)(dSampleAccum * dSincPhaseMul);
 	assert(phase < SINC_PHASES);
-	fSampleAccum += 1.0;
+	dSampleAccum += 1.0;
 
 	const float *s = fSampleBuffer;
-	const float *l = &fOPLSincLUT[phase << SINC_WIDTH_BITS];
+	const float *l = &fSincLUT[phase << SINC_WIDTH_BITS];
 
 	float fOut = 0.0f;
 	for (int32_t i = 0; i < SINC_WIDTH; i++)

@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
 	if (audio.soundcardtype == SOUNDCARD_GUS)
 		printf("Sound card: Gravis Ultrasound (%d voices - %.2fHz)\n", GUS_GetNumberOfVoices(), GUS_GetOutputRate());
 	else
-		printf("Sound card: Sound Blaster Pro (%s - %.2fHz)\n",  SBPro_StereoMode() ? "stereo" : "mono", SBPro_GetOutputRate());
+		printf("Sound card: Sound Blaster Pro (%s - %.2fHz)\n",  song.stereomode ? "stereo" : "mono", SBPro_GetOutputRate());
 
 	printf("Audio output frequency: %dHz\n", audio.outputFreq);
 	printf("ST3 stereo mode: %s\n", song.stereomode ? "Yes" : "No");

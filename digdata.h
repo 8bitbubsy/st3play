@@ -10,6 +10,7 @@
 // 9 LAdlib + 5 LAdlibDrums + 2 unused
 // 9 RAdlib + 5 RAdlibDrums + 2 unused
 #define ACHANNELS 48
+
 // 8bb: custom defines
 
 #define MAX_ORDERS 256

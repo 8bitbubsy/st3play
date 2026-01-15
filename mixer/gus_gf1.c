@@ -61,10 +61,9 @@ static const int16_t panOffsTable[16] =
 	 297,  372,  500, 4095
 };
 
-static bool resamplingNeeded;
-static int32_t activeVoices, gusOutputRate;
-static float fSampleBufferL[SINC_WIDTH], fSampleBufferR[SINC_WIDTH], fResampleRatio, fSampleAccum, fSincPhaseMul;
-static double dGUSOutputRate;
+static int32_t activeVoices = 14;
+static float fSampleBufferL[SINC_WIDTH], fSampleBufferR[SINC_WIDTH];
+static double dResampleRatio, dSampleAccum, dSincPhaseMul, dGUSOutputRate = 44100.0;
 static gusVoice_t gusVoice[GF1_MAX_VOICES];
 static gusVoice_t *gv = gusVoice; // initialize to voice #0
 
@@ -165,18 +164,12 @@ void GUS_Init(int32_t audioOutputFrequency, int32_t numVoices)
 		v->SFCI = 1 << GF1_SMP_ADD_FRAC_BITS; // 1.0
 	}
 
-	gv = &gusVoice[0]; // currently selected voice = first voice
-
+	gv = gusVoice; // currently selected voice = first voice
 	activeVoices = numVoices;
 	dGUSOutputRate = (double)(14 * 44100) / activeVoices;
-
-	resamplingNeeded = ((double)audioOutputFrequency != dGUSOutputRate);
-	if (resamplingNeeded)
-	{
-		fResampleRatio = (float)(audioOutputFrequency / dGUSOutputRate);
-		fSincPhaseMul = SINC_PHASES / fResampleRatio;
-		fSampleAccum = 0.0f;
-	}
+	dResampleRatio = (double)audioOutputFrequency / dGUSOutputRate;
+	dSincPhaseMul = SINC_PHASES / dResampleRatio;
+	dSampleAccum = 0.0;
 
 	unlockMixer();
 }
@@ -198,7 +191,7 @@ int32_t GUS_GetNumberOfRunningVoices(void)
 	gusVoice_t *v = gusVoice;
 	for (int32_t i = 0; i < activeVoices; i++, v++)
 	{
-		if (!(v->SACI & SACI_STOPPED))
+		if (!(v->SACI & SACI_STOPPED) && (v->SVLI >> GF1_VOL_FRAC_BITS) > 256)
 			voices++;
 	}
 
@@ -215,56 +208,56 @@ static void outputGUSSample(float *outL, float *outR)
 		if (v->SACI & SACI_STOP) v->SACI |= SACI_STOPPED;
 		if (v->SVCI & SVCI_STOP) v->SVCI |= SVCI_STOPPED;
 
-		if (v->SA == NULL || v->SAE == NULL || ((v->SACI & SACI_LOOP_FWD) && v->SAS == NULL))
-			v->SACI |= SACI_STOPPED;
-		
 		if (!(v->SACI & SACI_STOPPED)) // run sample engine
 		{
-			const uint16_t vol = v->SVLI >> GF1_VOL_FRAC_BITS;
-			uint16_t volL = vol - v->LOff;
-			uint16_t volR = vol - v->ROff;
-			volL &= ~((int16_t)volL >> 15);
-			volR &= ~((int16_t)volR >> 15);
-
-			// linear interpolation
-			int16_t sample2, sample = v->SA[0] << 8;
-			if (v->SA+1 >= v->SAE)
+			if (v->SA != NULL && v->SAE != NULL)
 			{
-				if (v->SACI & SACI_LOOP_FWD)
-					sample2 = v->SAS[0] << 8;
-				else
-					sample2 = 0;
-			}
-			else
-			{
-				sample2 = v->SA[1] << 8;
-			}
-			sample += ((sample2-sample) * (int16_t)v->SA_frac) >> GF1_SMP_ADD_FRAC_BITS;
-
-			// this is how GUS GF1 (or at least GUS PnP) does its volume conversion
-			L += (sample * (256 + (volL & 0xFF))) >> (24 - (volL >> 8));
-			R += (sample * (256 + (volR & 0xFF))) >> (24 - (volR >> 8));
-
-			v->SA_frac += v->SFCI;
-			v->SA += v->SA_frac >> GF1_SMP_ADD_FRAC_BITS;
-			v->SA_frac &= GF1_SMP_ADD_FRAC_MASK;
-
-			// handle end-of-sample
-			if (v->SA >= v->SAE)
-			{
-				if (v->SACI & SACI_LOOP_FWD)
+				// handle end-of-sample
+				if (v->SA >= v->SAE)
 				{
-					const uint32_t overflowSamples = (uint32_t)(v->SA - v->SAE);
+					if ((v->SACI & SACI_LOOP_FWD) && v->SAS != NULL)
+					{
+						const uint32_t overflowSamples = (uint32_t)(v->SA - v->SAE);
 
-					uint32_t loopLength = (uint32_t)(v->SAE - v->SAS);
-					if (loopLength == 0)
-						v->SA = v->SAS;
-					else
-						v->SA = v->SAS + (overflowSamples % loopLength);
+						uint32_t loopLength = (uint32_t)(v->SAE - v->SAS);
+						if (loopLength == 0)
+							v->SA = v->SAS;
+						else
+							v->SA = v->SAS + (overflowSamples % loopLength);
+					}
+					else // no loop
+					{
+						v->SACI |= SACI_STOPPED;
+					}
 				}
-				else // no loop
+
+				if (!(v->SACI & SACI_STOPPED))
 				{
-					v->SACI |= SACI_STOPPED;
+					// linear interpolation
+					int16_t sample = v->SA[0] << 8, sample2 = 0;
+					if (v->SA+1 >= v->SAE)
+					{
+						if (v->SACI & SACI_LOOP_FWD && v->SAS != NULL)
+							sample2 = v->SAS[0] << 8;
+					}
+					else
+					{
+						sample2 = v->SA[1] << 8;
+					}
+					sample += ((sample2-sample) * (int16_t)v->SA_frac) >> GF1_SMP_ADD_FRAC_BITS;
+
+					// this is how GUS GF1 (or at least GUS PnP) does its volume conversion
+					const uint16_t vol = v->SVLI >> GF1_VOL_FRAC_BITS;
+					uint16_t volL = vol - v->LOff;
+					uint16_t volR = vol - v->ROff;
+					volL &= ~((int16_t)volL >> 15);
+					volR &= ~((int16_t)volR >> 15);
+					L += (sample * (256 + (volL & 0xFF))) >> (24 - (volL >> 8));
+					R += (sample * (256 + (volR & 0xFF))) >> (24 - (volR >> 8));
+
+					v->SA_frac += v->SFCI;
+					v->SA += v->SA_frac >> GF1_SMP_ADD_FRAC_BITS;
+					v->SA_frac &= GF1_SMP_ADD_FRAC_MASK;
 				}
 			}
 		}
@@ -298,45 +291,37 @@ static void outputGUSSample(float *outL, float *outR)
 
 static void GUS_Output(float *outL, float *outR)
 {
-	float L, R;
-	if (resamplingNeeded)
+	while (dSampleAccum >= dResampleRatio)
 	{
-		while (fSampleAccum >= fResampleRatio)
+		dSampleAccum -= dResampleRatio;
+
+		// advance resampling ring buffer
+		for (int32_t i = 0; i < SINC_WIDTH-1; i++)
 		{
-			fSampleAccum -= fResampleRatio;
-
-			// advance resampling ring buffer
-			for (int32_t i = 0; i < SINC_WIDTH-1; i++)
-			{
-				fSampleBufferL[i] = fSampleBufferL[1+i];
-				fSampleBufferR[i] = fSampleBufferR[1+i];
-			}
-
-			float inL, inR;
-			outputGUSSample(&inL, &inR);
-
-			fSampleBufferL[SINC_WIDTH-1] = inL;
-			fSampleBufferR[SINC_WIDTH-1] = inR;
+			fSampleBufferL[i] = fSampleBufferL[1+i];
+			fSampleBufferR[i] = fSampleBufferR[1+i];
 		}
 
-		const uint32_t phase = (int32_t)(fSampleAccum * fSincPhaseMul);
-		assert(phase < SINC_PHASES);
-		fSampleAccum += 1.0;
+		float inL, inR;
+		outputGUSSample(&inL, &inR);
 
-		const float *sL = fSampleBufferL, *sR = fSampleBufferR;
-		const float *l = &fSincLUT[phase << SINC_WIDTH_BITS];
-
-		L = R = 0.0f;
-		for (int32_t i = 0; i < SINC_WIDTH; i++)
-		{
-			const float c = l[i];
-			L += sL[i] * c;
-			R += sR[i] * c;
-		}
+		fSampleBufferL[SINC_WIDTH-1] = inL;
+		fSampleBufferR[SINC_WIDTH-1] = inR;
 	}
-	else
+
+	const uint32_t phase = (int32_t)(dSampleAccum * dSincPhaseMul);
+	assert(phase < SINC_PHASES);
+	dSampleAccum += 1.0;
+
+	const float *sL = fSampleBufferL, *sR = fSampleBufferR;
+	const float *l = &fSincLUT[phase << SINC_WIDTH_BITS];
+
+	float L = 0.0f, R = 0.0f;
+	for (int32_t i = 0; i < SINC_WIDTH; i++)
 	{
-		outputGUSSample(&L, &R);
+		const float c = l[i];
+		L += sL[i] * c;
+		R += sR[i] * c;
 	}
 
 	*outL = L;

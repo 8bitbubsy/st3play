@@ -67,6 +67,7 @@ static void checkheader(void)
 	if (song.header.mastermul != 0)
 	{
 		audio.mastermul = song.header.mastermul & 127;
+
 		if (song.stereomode) // multiply mastermul by 11/8 -2 (30->41) {if STEREO/SBPRO}
 		{
 			uint16_t mastermul = audio.mastermul;
@@ -80,6 +81,11 @@ static void checkheader(void)
 
 			audio.mastermul = (uint8_t)mastermul;
 		}
+
+		if (audio.mastermul < 16)
+			audio.mastermul = 16;
+
+		audio.mastermul = 48;
 	}
 
 	if (song.header.inittempo != 0)
@@ -445,7 +451,7 @@ bool zplaysong(int16_t order)
 
 	song.adlibused = false; // 8bb: set in digadl.c if AdLib channels are handled
 
-	makeSincKernel(fSincLUT, 1.0);
+	makeSincKernel(fSincLUT);
 
 	OPL2_Init(audio.outputFreq);
 	initadlib(); // initialize adlib
@@ -506,7 +512,7 @@ bool zplaysong(int16_t order)
 	else if (audio.soundcardtype == SOUNDCARD_SBPRO)
 	{
 		const uint8_t timeConstant = song.stereomode ? 210 : 233;
-		SBPro_Init(audio.outputFreq, timeConstant, song.stereomode);
+		SBPro_Init(audio.outputFreq, timeConstant);
 	}
 
 	// 8bb: added these two for protection

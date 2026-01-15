@@ -20,20 +20,20 @@ static inline double besselI0(double z)
 	return s;
 }
 
-static inline double sinc(double x, double cutoff)
+static inline double sinc(double x)
 {
 	if (x == 0.0)
 	{
-		return cutoff;
+		return 1.0;
 	}
 	else
 	{
 		x *= PI;
-		return sin(cutoff * x) / x;
+		return sin(x) / x;
 	}
 }
 
-void makeSincKernel(float *fOut, double sincCutoff)
+void makeSincKernel(float *fOut)
 {
 	const double kaiserBeta = 9.6377; // lower beta results in audible ringing in some cases
 
@@ -46,6 +46,6 @@ void makeSincKernel(float *fOut, double sincCutoff)
 		const double n = x * (1.0 / (SINC_WIDTH / 2));
 		const double window = besselI0(kaiserBeta * sqrt(1.0 - n * n)) * besselI0Beta;
 
-		fOut[i] = (float)(sinc(x, sincCutoff) * window);
+		fOut[i] = (float)(sinc(x) * window);
 	}
 }
