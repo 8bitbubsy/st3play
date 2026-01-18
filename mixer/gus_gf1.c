@@ -18,7 +18,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "gus_gf1.h"
-#include "../dig.h"
+#include "../dig.h" // CLAMP16(), etc.
 #include "../digread.h"
 
 #define GF1_MIN_VOICES 14
@@ -52,8 +52,13 @@ typedef struct gusVoice_t
 	uint16_t SFCI; // frequency/delta (6.9fp)
 } gusVoice_t;
 
-// formula: x = round[-128 * log2((15-x) / 15)]
-static const int16_t panOffsTable[16] =
+/* Values taken from GUS PnP documentation.
+**
+** Formula:
+**  for (int32_t i = 0; i < 16; i++)
+**      panOffsTable[i] = (i == 15) ? 4095 : round(-128.0 * log2((15 - i) / 15.0))
+*/
+static const uint16_t panOffsTable[16] =
 {
 	   0,   13,   26,   41,
 	  57,   75,   94,  116,
@@ -234,26 +239,17 @@ static void outputGUSSample(float *outL, float *outR)
 				if (!(v->SACI & SACI_STOPPED))
 				{
 					// linear interpolation
-					int16_t sample = v->SA[0] << 8, sample2 = 0;
-					if (v->SA+1 >= v->SAE)
-					{
-						if (v->SACI & SACI_LOOP_FWD && v->SAS != NULL)
-							sample2 = v->SAS[0] << 8;
-					}
-					else
-					{
-						sample2 = v->SA[1] << 8;
-					}
-					sample += ((sample2-sample) * (int16_t)v->SA_frac) >> GF1_SMP_ADD_FRAC_BITS;
+					int16_t smp = v->SA[0] << 8, smp2 = v->SA[1] << 8;
+					smp += ((smp2-smp) * (int16_t)v->SA_frac) >> GF1_SMP_ADD_FRAC_BITS;
 
 					// this is how GUS GF1 (or at least GUS PnP) does its volume conversion
 					const uint16_t vol = v->SVLI >> GF1_VOL_FRAC_BITS;
-					uint16_t volL = vol - v->LOff;
-					uint16_t volR = vol - v->ROff;
-					volL &= ~((int16_t)volL >> 15);
-					volR &= ~((int16_t)volR >> 15);
-					L += (sample * (256 + (volL & 0xFF))) >> (24 - (volL >> 8));
-					R += (sample * (256 + (volR & 0xFF))) >> (24 - (volR >> 8));
+					int16_t volL = vol - v->LOff;
+					int16_t volR = vol - v->ROff;
+					volL &= ~((int16_t)volL >> 15); // if (volL < 0) volL = 0;
+					volR &= ~((int16_t)volR >> 15); // if (volR < 0) volR = 0;
+					L += (smp * (256 + (volL & 0xFF))) >> (24 - (volL >> 8));
+					R += (smp * (256 + (volR & 0xFF))) >> (24 - (volR >> 8));
 
 					v->SA_frac += v->SFCI;
 					v->SA += v->SA_frac >> GF1_SMP_ADD_FRAC_BITS;
@@ -285,8 +281,19 @@ static void outputGUSSample(float *outL, float *outR)
 		}
 	}
 
-	*outL = (float)L * (0.5f / 32768.0f);
-	*outR = (float)R * (0.5f / 32768.0f);
+	CLAMP16(L);
+	CLAMP16(R);
+
+	if (song.adlibused) // give some headroom for OPL output
+	{
+		*outL = (float)L * ((2.0f/3.0f) / 32768.0f);
+		*outR = (float)R * ((2.0f/3.0f) / 32768.0f);
+	}
+	else
+	{
+		*outL = (float)L * (1.0f / 32768.0f);
+		*outR = (float)R * (1.0f / 32768.0f);
+	}
 }
 
 static void GUS_Output(float *outL, float *outR)

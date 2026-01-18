@@ -80,7 +80,6 @@ static void outputSBProSample(float *outL, float *outR)
 
 				ch->m_pos = ch->m_loop + (overflowSamples % loopLength);
 			}
-
 			else // no loop
 			{
 				ch->m_speed = 0; // stop sample
@@ -94,8 +93,16 @@ static void outputSBProSample(float *outL, float *outR)
 	L = CLAMP(L, INT8_MIN, INT8_MAX);
 	R = CLAMP(R, INT8_MIN, INT8_MAX);
 
-	*outL = L * (0.5f / 128.0f);
-	*outR = R * (0.5f / 128.0f);
+	if (song.adlibused) // give some headroom for OPL output
+	{
+		*outL = (float)L * ((2.0f/3.0f) / 128.0f);
+		*outR = (float)R * ((2.0f/3.0f) / 128.0f);
+	}
+	else
+	{
+		*outL = (float)L * (1.0f / 128.0f);
+		*outR = (float)R * (1.0f / 128.0f);
+	}
 }
 
 static void SBPro_Output(float *outL, float *outR)

@@ -221,7 +221,7 @@ bool load_st3_from_ram(const uint8_t *data, uint32_t dataLength, int32_t soundCa
 			if (offs+ins->length > dataLength) // 8bb: dataLength is the filesize
 				ins->length = dataLength-offs;
 
-			ins->baseptr = (int8_t *)malloc(ins->length+512);
+			ins->baseptr = (int8_t *)malloc(ins->length+512+1); // 8bb: +1 for GUS intrp. safety (ST3 doesn't do this)
 			if (ins->baseptr == NULL)
 				goto loadError;
 

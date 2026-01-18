@@ -7,4 +7,4 @@
 #define SINC_WIDTH 16
 #define SINC_WIDTH_BITS 4 /* log2(SINC_WIDTH) */
 
-void makeSincKernel(float *fOut);
+void makeSincKernel(float *fOut, float kaiserBeta);

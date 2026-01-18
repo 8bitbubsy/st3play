@@ -17,10 +17,11 @@
 #include <stdbool.h>
 #include <math.h>
 #include "opl2.h"
-#include "../dig.h"
+#include "../dig.h" // CLAMP16(), etc.
 #include "../mixer/sinc.h"
 
-#define OPL2_OUTPUT_RATE (157500000.0 / 3168.0) /* ~49715.9090Hz */
+#define ISA_OSCPIN_CLK (157500000.0 / 11.0) /* exact nominal clock */
+#define OPL2_OUTPUT_RATE (ISA_OSCPIN_CLK / 288.0) /* ~49715.9090Hz */
 #define NUM_CHANNELS 9
 #define OPERATORS_PER_CHANNEL 2
 #define NUM_OPERATORS (NUM_CHANNELS*OPERATORS_PER_CHANNEL)
@@ -345,10 +346,7 @@ static float OutputOPL2Sample(void)
 	for (int32_t i = 0; i < NUM_CHANNELS; i++, Ch++)
 		mix += ChannelOutput(Ch);
 
-	if (mix < INT16_MIN)
-		mix = INT16_MIN;
-	else if (mix > INT16_MAX)
-		mix = INT16_MAX;
+	CLAMP16(mix);
 
 	Clock++;
 

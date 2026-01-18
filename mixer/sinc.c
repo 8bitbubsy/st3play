@@ -33,18 +33,18 @@ static inline double sinc(double x)
 	}
 }
 
-void makeSincKernel(float *fOut)
+void makeSincKernel(float *fOut, float kaiserBeta)
 {
-	const double kaiserBeta = 9.6377; // lower beta results in audible ringing in some cases
+	const double beta = kaiserBeta;
 
-	const double besselI0Beta = 1.0 / besselI0(kaiserBeta);
+	const double besselI0Beta = 1.0 / besselI0(beta);
 	for (int32_t i = 0; i < SINC_WIDTH * SINC_PHASES; i++)
 	{
 		const double x = ((i & (SINC_WIDTH-1)) - ((SINC_WIDTH / 2) - 1)) - ((i >> SINC_WIDTH_BITS) * (1.0 / SINC_PHASES));
 
 		// 8bb: Kaiser-Bessel window
 		const double n = x * (1.0 / (SINC_WIDTH / 2));
-		const double window = besselI0(kaiserBeta * sqrt(1.0 - n * n)) * besselI0Beta;
+		const double window = besselI0(beta * sqrt(1.0 - n * n)) * besselI0Beta;
 
 		fOut[i] = (float)(sinc(x) * window);
 	}

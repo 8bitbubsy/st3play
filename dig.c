@@ -451,9 +451,9 @@ bool zplaysong(int16_t order)
 
 	song.adlibused = false; // 8bb: set in digadl.c if AdLib channels are handled
 
-	makeSincKernel(fSincLUT);
-
+	makeSincKernel(fSincLUT, 9.6377);
 	OPL2_Init(audio.outputFreq);
+
 	initadlib(); // initialize adlib
 
 	song.stereomode = !!(song.header.mastermul & 128);
