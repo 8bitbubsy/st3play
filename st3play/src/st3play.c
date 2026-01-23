@@ -144,13 +144,13 @@ int main(int argc, char *argv[])
 		{
 			if (song.adlibused)
 			{
-				printf(" Pos: %03d/%03d - Pat: %02d - Row: %02d/64 - Active GUS voices: %02d - Active AdLib voices: %01d/9 %s\r",
+				printf(" Pos: %03d/%03d - Pat: %02d - Row: %02d/64 - GUS/OPL voices: %02d/32 - %01d/9 %s\r",
 					song.np_ord, song.header.ordnum, song.np_pat, song.np_row,
 					activePCMVoices(), activeAdLibVoices(), !audio.playing ? "(PAUSED)" : "        ");
 			}
 			else
 			{
-				printf(" Pos: %03d/%03d - Pat: %02d - Row: %02d/64 - Active GUS voices: %02d %s\r",
+				printf(" Pos: %03d/%03d - Pat: %02d - Row: %02d/64 - GUS voices: %02d/32 %s\r",
 					song.np_ord, song.header.ordnum, song.np_pat, song.np_row,
 					activePCMVoices(), !audio.playing ? "(PAUSED)" : "        ");
 			}
@@ -159,13 +159,13 @@ int main(int argc, char *argv[])
 		{
 			if (song.adlibused)
 			{
-				printf(" Pos: %03d/%03d - Pat: %02d - Row: %02d/64 - Active ST3 PCM voices: %02d/16 - Active AdLib voices: %01d/9 %s\r",
+				printf(" Pos: %03d/%03d - Pat: %02d - Row: %02d/64 - ST3/OPL voices: %02d/16 - %01d/9 %s\r",
 					song.np_ord, song.header.ordnum, song.np_pat, song.np_row,
 					activePCMVoices(), activeAdLibVoices(), !audio.playing ? "(PAUSED)" : "        ");
 			}
 			else
 			{
-				printf(" Pos: %03d/%03d - Pat: %02d - Row: %02d/64 - Active ST3 PCM voices: %02d/16 %s\r",
+				printf(" Pos: %03d/%03d - Pat: %02d - Row: %02d/64 - ST3 voices: %02d/16 %s\r",
 					song.np_ord, song.header.ordnum, song.np_pat, song.np_row,
 					activePCMVoices(), !audio.playing ? "(PAUSED)" : "        ");
 			}
