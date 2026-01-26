@@ -84,8 +84,6 @@ static void checkheader(void)
 
 		if (audio.mastermul < 16)
 			audio.mastermul = 16;
-
-		audio.mastermul = 48;
 	}
 
 	if (song.header.inittempo != 0)
