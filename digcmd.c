@@ -879,7 +879,7 @@ static void s_retrig(zchn_t *ch)
 	else
 		ch->avol = (int8_t)((ch->avol * retrigvoladd[infohi+16]) >> 4);
 
-	CLAMP_VOLUME(ch->avol);
+	ch->avol = CLAMP((int8_t)ch->avol, 0, 63);
 	setvol(ch);
 
 	ch->atrigcnt++;
@@ -985,15 +985,15 @@ static void s_settrewave(zchn_t *ch)
 
 static void s_stereocntr(zchn_t *ch) // SAx
 {
-	/* 8bb: Sound Blaster mixer selector (buggy, undocumented ST3 effect):
-	** - SA0 = normal  mix
-	** - SA1 = swapped mix (L<->R)
-	** - SA2 = normal  mix (broken in ST3.21 - not implemented in st3play)
-	** - SA3 = swapped mix (broken in ST3.21 - not implemented in st3play)
-	** - SA4 = center  mix (broken in ST3.21 - not implemented in st3play)
-	** - SA5 = center  mix (broken in ST3.21 - not implemented in st3play)
-	** - SA6 = center  mix (broken in ST3.21 - not implemented in st3play)
-	** - SA7 = center  mix (broken in ST3.21 - not implemented in st3play)
+	/* 8bb: Sound Blaster Pro L/R channel output selector (undocumented ST3 effect):
+	** - SA0 = normal
+	** - SA1 = swapped (L<->R)
+	** - SA2 = normal  (bugged, has DC offset)
+	** - SA3 = swapped (bugged, has DC offset)
+	** - SA4 = center  (bugged, has DC offset)
+	** - SA5 = center  (bugged, has DC offset)
+	** - SA6 = center
+	** - SA7 = center  (bugged, has DC offset)
 	*/
 
 	if ((ch->info & 0xF) <= 7)

@@ -26,8 +26,7 @@ void doamiga(zchn_t *ch)
 				if (ins->type == 1) // sample
 				{
 					ch->ac2spd = (uint16_t)ins->c2spd; // 8bb: clamped to 0..65535 in sample loader
-					ch->avol = ins->vol;
-					CLAMP_VOLUME(ch->avol);
+					ch->avol = CLAMP((int8_t)ins->vol, 0, 63);
 					ch->aorgvol = ch->avol;
 					setvol(ch);
 
@@ -57,7 +56,7 @@ void doamiga(zchn_t *ch)
 					else // no loop
 					{
 						uint16_t length = (uint16_t)ins->length;
-						length += 32; // extra fadeout for GUS (8bb: Also applies to SB! Also can overflow!)
+						length += 32; // extra fadeout for GUS (8bb: also applies to SB, and can also overflow)
 
 						ch->m_end = length;
 						ch->m_loop = 65535; // 8bb: disable loop
@@ -91,7 +90,7 @@ void doamiga(zchn_t *ch)
 			// end sample
 
 			ch->m_pos = 1;
-			ch->m_poslow = 0;
+			ch->m_poslow = 0; // 8bb: also clear position frac
 
 			ch->aspd = 0;
 			setspd(ch);
@@ -102,7 +101,7 @@ void doamiga(zchn_t *ch)
 			ch->m_end = 0;
 			ch->m_loop = 65535; // 8bb: disable loop
 
-			ch->asldspd = 65535; // 8bb: label-jump bug causes this
+			ch->asldspd = 65535; // 8bb: accidental label-jump typo in asm code causes this
 		}
 		else
 		{
@@ -110,8 +109,9 @@ void doamiga(zchn_t *ch)
 			if (ch->cmd != 'G'-64 && ch->cmd != 'L'-64)
 			{
 				ch->m_pos = ch->astartoffset;
+				ch->m_poslow = 0; // 8bb: also clear position frac
+
 				ch->m_oldpos = 0x12345678; // 8bb: this forces a GUS retrigger
-				ch->m_poslow = 0;
 			}
 
 			// calc note speed

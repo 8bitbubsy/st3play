@@ -169,7 +169,7 @@ typedef struct audio_t
 	volatile bool playing;
 	int32_t soundcardtype;
 	int8_t mastermul; // 8bb: used for SB mixer
-	uint32_t notemixingspeed; // 8bb: ST3 SB/GUS mixing frequency
+	uint16_t notemixingspeed; // 8bb: ST3 SB/GUS mixing frequency
 	uint32_t outputFreq; // 8bb: actual audio output speed
 	uint32_t tickSampleCounter, samplesPerTickInt, bpm2SamplesPerTickInt[256], bpm2SamplesPerTickFrac[256];
 	uint64_t tickSampleCounterFrac, samplesPerTickFrac;

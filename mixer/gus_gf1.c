@@ -203,7 +203,7 @@ int32_t GUS_GetNumberOfRunningVoices(void)
 	return voices;
 }
 
-static void outputGUSSample(float *outL, float *outR)
+static void outputGUSSample(float *fOutL, float *fOutR)
 {
 	int32_t L = 0, R = 0;
 
@@ -284,15 +284,18 @@ static void outputGUSSample(float *outL, float *outR)
 	CLAMP16(L);
 	CLAMP16(R);
 
+	const float f16L = (const float)L;
+	const float f16R = (const float)R;
+
 	if (song.adlibused) // give some headroom for OPL output
 	{
-		*outL = (float)L * ((2.0f/3.0f) / 32768.0f);
-		*outR = (float)R * ((2.0f/3.0f) / 32768.0f);
+		*fOutL = f16L * ((2.0f/3.0f) / 32768.0f);
+		*fOutR = f16R * ((2.0f/3.0f) / 32768.0f);
 	}
 	else
 	{
-		*outL = (float)L * (1.0f / 32768.0f);
-		*outR = (float)R * (1.0f / 32768.0f);
+		*fOutL = f16L * (1.0f / 32768.0f);
+		*fOutR = f16R * (1.0f / 32768.0f);
 	}
 }
 

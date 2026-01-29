@@ -81,9 +81,6 @@ static void checkheader(void)
 
 			audio.mastermul = (uint8_t)mastermul;
 		}
-
-		if (audio.mastermul < 16)
-			audio.mastermul = 16;
 	}
 
 	if (song.header.inittempo != 0)
@@ -133,7 +130,7 @@ void setglobalvol(int8_t vol)
 	if ((uint8_t)vol > 64)
 		vol = 64;
 
-	song.useglobalvol = ((unsigned)vol * (256*4)) >> 8; // 8bb: 0..256, for setvol()
+	song.useglobalvol = (uint16_t)vol << 2; // 8bb: 0..256, for setvol()
 }
 
 void shutupsounds(void)
@@ -300,32 +297,29 @@ void setspd(zchn_t *ch)
 			ch->aspd = tmpspd;
 	}
 
-	const uint32_t hz = 14317056 / (uint32_t)tmpspd;
-	const uint16_t hzHi = hz >> 16;
-	const uint16_t hzLo = (uint16_t)hz;
-
-	// 8bb: for AdLib
-	ch->addherzhi = hzHi;
-	ch->addherzlo = hzLo;
-	// ------------------
-
-	if (hz <= 0xFFFF)
+	const uint32_t hz = 14317056 / (uint16_t)tmpspd;
+	if (hz < 65536)
 	{
+		// 8bb: fits in 32-bit division
 		ch->m_speed = (hz << 16) / audio.notemixingspeed;
 	}
 	else
 	{
+		// 8bb: hz is above 65535, slow calculation needed
 		const uint16_t quotient  = (uint16_t)(hz / audio.notemixingspeed);
 		const uint16_t remainder = (uint16_t)(hz % audio.notemixingspeed);
-
 		ch->m_speed = (quotient << 16) | ((remainder << 16) / audio.notemixingspeed);
 	}
+
+	// 8bb: for AdLib
+	ch->addherzhi = hz >> 16;
+	ch->addherzlo = (uint16_t)hz;
 }
 
 void setvol(zchn_t *ch)
 {
 	ch->achannelused |= 128;
-	ch->m_vol = ((unsigned)ch->avol * song.useglobalvol) >> 8;
+	ch->m_vol = ((uint8_t)ch->avol * song.useglobalvol) >> 8;
 }
 
 uint16_t stnote2herz(uint8_t note)

@@ -162,7 +162,7 @@ void doadlib(zchn_t *ch, uint8_t adLibCh)
 	if (ch->vol != 255)
 	{
 		ch->avol = ch->vol;
-		if ((unsigned)ch->avol > 63)
+		if ((uint8_t)ch->avol > 63)
 			ch->avol = 63;
 
 		ch->aorgvol = ch->avol;

@@ -17,10 +17,6 @@
 // Read "audiodrivers/how_to_write_drivers.txt"
 #endif
 
-#define CLAMP_VOLUME(x) \
-     if ((signed)x < 0) x = 0; \
-else if ((signed)x > 63) x = 63;
-
 void setglobalvol(int8_t vol);
 uint16_t roundspd(zchn_t *ch, uint16_t spd); // 8bb: for Gxx with semitones-slide enabled
 uint16_t scalec2spd(zchn_t *ch, uint16_t spd);
