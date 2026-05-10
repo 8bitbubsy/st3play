@@ -37,7 +37,7 @@ enum
 
 typedef struct rcFilter_t
 {
-	float lastSample, c1, c2;
+	float lastSample, b1, a0;
 } rcFilter_t;
 
 typedef struct Operator_t
@@ -364,7 +364,7 @@ static float OutputOPL2Sample(void)
 	float fMix = (float)mix * (1.0f / 32768.0f);
 
 	// 8bb: apply DC-centering high-pass filter
-	filter.lastSample = (filter.c1 * fMix) + (filter.c2 * filter.lastSample);
+	filter.lastSample = (fMix * filter.a0) + (filter.lastSample * filter.b1);
 	fMix -= filter.lastSample;
 
 	return fMix;
@@ -533,14 +533,10 @@ void OPL2_Init(int32_t audioOutputFrequency)
 	if (audioOutputFrequency <= 0)
 		audioOutputFrequency = 44100;
 
-	// 8bb: OPL DC-blocking high-pass filter (RC values taken from Sound Blaster 1.0 schematics)
-	double R = 10000.0; // 10K ohm
-	double C = 1.0e-5; // 10uF
-	double cutoff = 1.0 / (M_PI * R * C); // ~3.18Hz
-	const double a = 2.0 - cos((M_PI * cutoff) / OPL2_OUTPUT_RATE);
-	const double b = a - sqrt((a * a) - 1.0);
-	filter.c2 = (float)b;
-	filter.c1 = (float)(1.0 - b);
+	// 8bb: OPL DC-blocking high-pass filter
+	const double cutoffHz = 3.18309886184; // based on RC values from Sound Blaster 1.0 schematics
+	filter.b1 = (float)exp((-2.0 * PI) * cutoffHz / OPL2_OUTPUT_RATE);
+	filter.a0 = 1.0f - filter.b1;
 	filter.lastSample = 0.0f;
 
 	TremoloClock = TremoloLevel = VibratoTick = VibratoClock = Clock = 0;
