@@ -20,6 +20,7 @@
 #include "gus_gf1.h"
 #include "../dig.h" // CLAMP16(), etc.
 #include "../digread.h"
+#include "sinc.h"
 
 #define GF1_MIN_VOICES 14
 #define GF1_MAX_VOICES 32
@@ -67,7 +68,7 @@ static const uint16_t panOffsTable[16] =
 };
 
 static int32_t activeVoices = 14;
-static float fSampleBufferL[SINC_WIDTH], fSampleBufferR[SINC_WIDTH];
+static float fSampleBufferL[SINC_TAPS], fSampleBufferR[SINC_TAPS];
 static double dResampleRatio, dSampleAccum, dSincPhaseMul, dGUSOutputRate = 44100.0;
 static gusVoice_t gusVoice[GF1_MAX_VOICES];
 static gusVoice_t *gv = gusVoice; // initialize to voice #0
@@ -173,7 +174,7 @@ void GUS_Init(int32_t audioOutputFrequency, int32_t numVoices)
 	activeVoices = numVoices;
 	dGUSOutputRate = (double)(14 * 44100) / activeVoices;
 	dResampleRatio = (double)audioOutputFrequency / dGUSOutputRate;
-	dSincPhaseMul = SINC_PHASES / dResampleRatio;
+	dSincPhaseMul = SINC_OVERSAMPLING / dResampleRatio;
 	dSampleAccum = 0.0;
 
 	unlockMixer();
@@ -306,7 +307,7 @@ static void GUS_Output(float *outL, float *outR)
 		dSampleAccum -= dResampleRatio;
 
 		// advance resampling ring buffer
-		for (int32_t i = 0; i < SINC_WIDTH-1; i++)
+		for (int32_t i = 0; i < SINC_TAPS-1; i++)
 		{
 			fSampleBufferL[i] = fSampleBufferL[1+i];
 			fSampleBufferR[i] = fSampleBufferR[1+i];
@@ -315,27 +316,34 @@ static void GUS_Output(float *outL, float *outR)
 		float inL, inR;
 		outputGUSSample(&inL, &inR);
 
-		fSampleBufferL[SINC_WIDTH-1] = inL;
-		fSampleBufferR[SINC_WIDTH-1] = inR;
+		fSampleBufferL[SINC_TAPS-1] = inL;
+		fSampleBufferR[SINC_TAPS-1] = inR;
 	}
 
-	const uint32_t phase = (int32_t)(dSampleAccum * dSincPhaseMul);
-	assert(phase < SINC_PHASES);
+	const double dPhase = dSampleAccum * dSincPhaseMul; // 0.0 .. SINC_OVERSAMPLING-1
 	dSampleAccum += 1.0;
 
-	const float *sL = fSampleBufferL, *sR = fSampleBufferR;
-	const float *l = &fSincLUT[phase << SINC_WIDTH_BITS];
+	const int32_t lutPhase = (int32_t)dPhase;
+	const float fIntrpFrac = (float)(dPhase - lutPhase);
 
-	float L = 0.0f, R = 0.0f;
-	for (int32_t i = 0; i < SINC_WIDTH; i++)
+	// it may look like we go out of bounds for fSinc_2, but we have an extra phase after LUT
+	const float *fSinc_1 = fSincLUT + ( lutPhase    << SINC_TAPS_BITS);
+	const float *fSinc_2 = fSincLUT + ((lutPhase+1) << SINC_TAPS_BITS);
+
+	float fSumL = 0.0f, fSumR = 0.0f;
+	for (int32_t i = 0; i < SINC_TAPS; i++)
 	{
-		const float c = l[i];
-		L += sL[i] * c;
-		R += sR[i] * c;
-	}
+		// do linear interpolation between phases
+		const float y1 = fSinc_1[i];
+		const float y2 = fSinc_2[i];
+		const float y = y1 + ((y2 - y1) * fIntrpFrac);
 
-	*outL = L;
-	*outR = R;
+		fSumL += fSampleBufferL[i] * y;
+		fSumR += fSampleBufferR[i] * y;
+	}
+	
+	*outL = fSumL;
+	*outR = fSumR;
 }
 
 void GUS_RenderSamples(float *fMixBufL, float *fMixBufR, int32_t numSamples)

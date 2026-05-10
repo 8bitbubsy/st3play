@@ -137,7 +137,7 @@ static const uint8_t levtab[128] = // 8bb: based on KSL table from ROM, but modi
 
 static bool NoteSel, TremoloDepth, VibratoDepth;
 static uint16_t Clock, TremoloClock, TremoloLevel, VibratoTick, VibratoClock;
-static float fSampleBuffer[SINC_WIDTH];
+static float fSampleBuffer[SINC_TAPS];
 static double dResampleRatio, dSampleAccum, dSincPhaseMul;
 static Channel_t Channel[NUM_CHANNELS];
 static Operator_t Operator[NUM_OPERATORS];
@@ -577,7 +577,7 @@ void OPL2_Init(int32_t audioOutputFrequency)
 	}
 
 	dResampleRatio = (double)audioOutputFrequency / OPL2_OUTPUT_RATE;
-	dSincPhaseMul = SINC_PHASES / dResampleRatio;
+	dSincPhaseMul = SINC_OVERSAMPLING / dResampleRatio;
 	dSampleAccum = 0.0;
 }
 
@@ -695,23 +695,31 @@ static float outputOPL2Sample(void)
 		dSampleAccum -= dResampleRatio;
 
 		// 8bb: advance resampling ring buffer
-		for (int32_t i = 0; i < SINC_WIDTH-1; i++)
+		for (int32_t i = 0; i < SINC_TAPS-1; i++)
 			fSampleBuffer[i] = fSampleBuffer[1+i];
-		fSampleBuffer[SINC_WIDTH-1] = OutputOPL2Sample();
+		fSampleBuffer[SINC_TAPS-1] = OutputOPL2Sample();
 	}
 
-	const uint32_t phase = (int32_t)(dSampleAccum * dSincPhaseMul);
-	assert(phase < SINC_PHASES);
+	const double dPhase = dSampleAccum * dSincPhaseMul; // 0.0 .. SINC_OVERSAMPLING-1
 	dSampleAccum += 1.0;
 
-	const float *s = fSampleBuffer;
-	const float *l = &fSincLUT[phase << SINC_WIDTH_BITS];
+	const int32_t lutPhase = (int32_t)dPhase;
+	const float fIntrpFrac = (float)(dPhase - lutPhase);
 
-	float fOut = 0.0f;
-	for (int32_t i = 0; i < SINC_WIDTH; i++)
-		fOut += s[i] * l[i];
+	// it may look like we go out of bounds for fSinc_2, but we have an extra phase after LUT
+	const float *fSinc_1 = fSincLUT + ( lutPhase    << SINC_TAPS_BITS);
+	const float *fSinc_2 = fSincLUT + ((lutPhase+1) << SINC_TAPS_BITS);
 
-	return fOut;
+	float fSum = 0.0f;
+	for (int32_t i = 0; i < SINC_TAPS; i++)
+	{
+		// do linear interpolation between phases
+		const float y1 = fSinc_1[i];
+		const float y2 = fSinc_2[i];
+		fSum += fSampleBuffer[i] * (y1 + ((y2 - y1) * fIntrpFrac));
+	}
+
+	return fSum;
 }
 
 void OPL2_MixSamples(float *fMixBufL, float *fMixBufR, int32_t numSamples)

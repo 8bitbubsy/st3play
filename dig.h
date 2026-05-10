@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "digdata.h"
-#include "mixer/sinc.h"
 
 // AUDIO DRIVERS
 #if defined AUDIODRIVER_SDL
@@ -39,7 +38,6 @@ void musmixer(int16_t *buffer, int32_t samples);
 #define CLAMP16(i) if ((int16_t)(i) != i) i = 0x7FFF ^ (i >> 31)
 
 extern bool WAVRender_Flag;
-extern float fSincLUT[SINC_PHASES*SINC_WIDTH];
 extern bool renderToWavFlag;
 
 void closeMusic(void);

@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "../dig.h"
+#include "sinc.h"
 
 #define ST3_PCM_CHANNELS 16
 
@@ -20,14 +21,14 @@ static const uint8_t xvol_st3[64+1] =
 };
 
 static int8_t postTable[2048];
-static float fSampleBufferL[SINC_WIDTH], fSampleBufferR[SINC_WIDTH];
+static float fSampleBufferL[SINC_TAPS], fSampleBufferR[SINC_TAPS];
 static double dResampleRatio, dSampleAccum, dSincPhaseMul, dSBProOutputRate;
 
 void SBPro_Init(int32_t audioOutputFrequency, uint8_t timeConstant)
 {
 	dSBProOutputRate = 1000000.0 / (256 - timeConstant);
 	dResampleRatio = (double)audioOutputFrequency / dSBProOutputRate;
-	dSincPhaseMul = SINC_PHASES / dResampleRatio;
+	dSincPhaseMul = SINC_OVERSAMPLING / dResampleRatio;
 	dSampleAccum = 0.0;
 
 	// create post table (aka. "squeeze volume table")
@@ -147,7 +148,7 @@ static void SBPro_Output(float *outL, float *outR)
 		dSampleAccum -= dResampleRatio;
 
 		// advance resampling ring buffer
-		for (int32_t i = 0; i < SINC_WIDTH-1; i++)
+		for (int32_t i = 0; i < SINC_TAPS-1; i++)
 		{
 			fSampleBufferL[i] = fSampleBufferL[1+i];
 			fSampleBufferR[i] = fSampleBufferR[1+i];
@@ -156,27 +157,34 @@ static void SBPro_Output(float *outL, float *outR)
 		float inL, inR;
 		outputSBProSample(&inL, &inR);
 
-		fSampleBufferL[SINC_WIDTH-1] = inL;
-		fSampleBufferR[SINC_WIDTH-1] = inR;
+		fSampleBufferL[SINC_TAPS-1] = inL;
+		fSampleBufferR[SINC_TAPS-1] = inR;
 	}
 
-	const uint32_t phase = (int32_t)(dSampleAccum * dSincPhaseMul);
-	assert(phase < SINC_PHASES);
+	const double dPhase = dSampleAccum * dSincPhaseMul; // 0.0 .. SINC_OVERSAMPLING-1
 	dSampleAccum += 1.0;
 
-	const float *sL = fSampleBufferL, *sR = fSampleBufferR;
-	const float *l = &fSincLUT[phase << SINC_WIDTH_BITS];
+	const int32_t lutPhase = (int32_t)dPhase;
+	const float fIntrpFrac = (float)(dPhase - lutPhase);
 
-	float L = 0.0f, R = 0.0f;
-	for (int32_t i = 0; i < SINC_WIDTH; i++)
+	// it may look like we go out of bounds for fSinc_2, but we have an extra phase after LUT
+	const float *fSinc_1 = fSincLUT + ( lutPhase    << SINC_TAPS_BITS);
+	const float *fSinc_2 = fSincLUT + ((lutPhase+1) << SINC_TAPS_BITS);
+
+	float fSumL = 0.0f, fSumR = 0.0f;
+	for (int32_t i = 0; i < SINC_TAPS; i++)
 	{
-		const float c = l[i];
-		L += sL[i] * c;
-		R += sR[i] * c;
+		// do linear interpolation between phases
+		const float y1 = fSinc_1[i];
+		const float y2 = fSinc_2[i];
+		const float y = y1 + ((y2 - y1) * fIntrpFrac);
+
+		fSumL += fSampleBufferL[i] * y;
+		fSumR += fSampleBufferR[i] * y;
 	}
 
-	*outL = L;
-	*outR = R;
+	*outL = fSumL;
+	*outR = fSumR;
 }
 
 void SBPro_RenderSamples(float *fMixBufL, float *fMixBufR, int32_t numSamples)

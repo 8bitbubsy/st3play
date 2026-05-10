@@ -1,10 +1,7 @@
 #pragma once
 
-#include <stdint.h>
-#include <stdbool.h>
+#define SINC_TAPS 16
+#define SINC_TAPS_BITS 4 /* log2(SINC_TAPS) */
+#define SINC_OVERSAMPLING 256
 
-#define SINC_PHASES 8192
-#define SINC_WIDTH 16
-#define SINC_WIDTH_BITS 4 /* log2(SINC_WIDTH) */
-
-void makeSincKernel(float *fOut, float kaiserBeta);
+extern const float fSincLUT[(SINC_OVERSAMPLING+1) * SINC_TAPS];

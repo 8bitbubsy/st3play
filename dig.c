@@ -30,16 +30,12 @@
 #include "digadl.h"
 #include "mixer/gus_gf1.h"
 #include "mixer/sbpro.h"
-#include "mixer/sinc.h"
 #include "opl2/opl2.h"
 
 static uint32_t randSeed;
 static float fPrngStateL, fPrngStateR;
 
-// globals
-bool WAVRender_Flag;
-float fSincLUT[SINC_PHASES*SINC_WIDTH];
-// ----------------
+bool WAVRender_Flag; // global
 
 static void setmasterflags(void)
 {
@@ -443,9 +439,7 @@ bool zplaysong(int16_t order)
 
 	song.adlibused = false; // 8bb: set in digadl.c if AdLib channels are handled
 
-	makeSincKernel(fSincLUT, 9.6377);
 	OPL2_Init(audio.outputFreq);
-
 	initadlib(); // initialize adlib
 
 	song.stereomode = !!(song.header.mastermul & 128);
