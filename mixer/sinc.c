@@ -7,7 +7,7 @@
 ** Window: Kaiser-Bessel (tweaked to ~96.3dB stopband attenuation)
 **
 ** This table should be used together with linear interpolation to get
-** near-perfect results (instead of having a lot of zconsuming phases).
+** near-perfect results (instead of having a lot of memory/cache consuming phases).
 **
 ** Contains one extra inverted phase at end for interpolation wrap-around.
 */
