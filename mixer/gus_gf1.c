@@ -2,7 +2,7 @@
 ** Simple 'Gravis Ultrasound' GF1 emulator for st3play
 **
 ** This emulator has just enough logic implemented to support st3play.
-** In other words, it's lacking a lot of stuff that we don't need.
+** In other words, it's lacking a lot of stuff (which we don't need).
 **
 ** Built using the excellent low-level hardware documentation found in
 ** "InterWave IC Am78C201 Programmers Guide v2, (SDK) 1996.pdf"
