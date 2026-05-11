@@ -2,8 +2,8 @@
  **
  **  Gravis Ultrasound driver
  **
- ** 8bitbubsy: This driver is buggy when close to all (16) ST3 PCM
- **            voices are used. :(
+ ** 8bitbubsy: This driver (as with original ST3) is buggy when close to
+ **            all (16) ST3 PCM voices are used. :(
  **
  ***********************************************************************/
 
