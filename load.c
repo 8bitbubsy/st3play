@@ -172,7 +172,6 @@ bool load_st3_from_ram(const uint8_t *data, uint32_t dataLength, int32_t soundCa
 	if (song.header.mastermul == 2+16)
 		song.header.mastermul = 0x20+128;
 
-	memset(song.order, 255, sizeof (song.order));
 	mread(song.order, 1, song.header.ordnum, f);
 	mread(insoff, 2, song.header.insnum, f);
 	mread(patoff, 2, song.header.patnum, f);
