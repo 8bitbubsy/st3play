@@ -345,8 +345,7 @@ static float OutputOPL2Sample(void)
 	Channel_t *Ch = Channel;
 	for (int32_t i = 0; i < NUM_CHANNELS; i++, Ch++)
 		mix += ChannelOutput(Ch);
-
-	CLAMP16(mix);
+	mix = CLAMP(mix, INT16_MIN, INT16_MAX);
 
 	Clock++;
 

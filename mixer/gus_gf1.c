@@ -282,8 +282,8 @@ static void outputGUSSample(float *fOutL, float *fOutR)
 		}
 	}
 
-	CLAMP16(L);
-	CLAMP16(R);
+	L = CLAMP(L, INT16_MIN, INT16_MAX);
+	R = CLAMP(R, INT16_MIN, INT16_MAX);
 
 	*fOutL = (float)L * (1.0f / 32768.0f);
 	*fOutR = (float)R * (1.0f / 32768.0f);

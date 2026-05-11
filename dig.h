@@ -35,7 +35,6 @@ void musmixer(int16_t *buffer, int32_t samples);
 #endif
 
 #define CLAMP(x, low, high) (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
-#define CLAMP16(i) if ((int16_t)(i) != i) i = 0x7FFF ^ (i >> 31)
 
 extern bool WAVRender_Flag;
 extern bool renderToWavFlag;
@@ -46,7 +45,7 @@ void togglePause(void);
 int32_t activePCMVoices(void);
 int32_t activeAdLibVoices(void);
 void resetAudioDither(void);
-bool Dig_renderToWAV(uint32_t audioRate, uint32_t bufferSize, const char *filenameOut);
+bool Dig_RenderToWAV(uint32_t audioRate, uint32_t bufferSize, const char *filenameOut);
 
 // load.c
 bool load_st3_from_ram(const uint8_t *data, uint32_t dataLength, int32_t soundCardType);

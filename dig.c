@@ -411,8 +411,7 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 		fOut = (fOut + fPrng) - fPrngStateL;
 		fPrngStateL = fPrng;
 		out32 = (int32_t)fOut;
-		CLAMP16(out32);
-		*buffer++ = (int16_t)out32;
+		*buffer++ = (int16_t)(CLAMP(out32, INT16_MIN, INT16_MAX));
 
 		// 8bb: right channel - 1-bit triangular dithering
 		fPrng = (float)random32() * (1.0f / (UINT32_MAX+1.0f)); // -0.5f .. 0.5f
@@ -420,8 +419,7 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 		fOut = (fOut + fPrng) - fPrngStateR;
 		fPrngStateR = fPrng;
 		out32 = (int32_t)fOut;
-		CLAMP16(out32);
-		*buffer++ = (int16_t)out32;
+		*buffer++ = (int16_t)(CLAMP(out32, INT16_MIN, INT16_MAX));
 
 		// 8bb: clear what we read from the mixing buffer
 		audio.fMixBufferL[i] = audio.fMixBufferR[i] = 0.0f;
@@ -695,7 +693,7 @@ static void WAV_WriteEnd(FILE *f, uint32_t size)
 	fwrite(&size, 4, 1, f);
 }
 
-bool Dig_renderToWAV(uint32_t audioRate, uint32_t bufferSize, const char *filenameOut)
+bool Dig_RenderToWAV(uint32_t audioRate, uint32_t bufferSize, const char *filenameOut)
 {
 	int16_t *AudioBuffer = (int16_t *)malloc(bufferSize * 2 * sizeof (int16_t));
 	if (AudioBuffer == NULL)
