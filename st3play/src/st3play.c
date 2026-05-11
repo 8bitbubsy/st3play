@@ -42,7 +42,7 @@ void wavRecordingThread(void *arg)
 void *wavRecordingThread(void *arg)
 #endif
 {
-	Dig_renderToWAV(mixingFrequency, mixingBufferSize, WAVRenderFilename);
+	Dig_RenderToWAV(mixingFrequency, mixingBufferSize, WAVRenderFilename);
 #ifndef _WIN32
 	return NULL;
 #endif
