@@ -285,19 +285,8 @@ static void outputGUSSample(float *fOutL, float *fOutR)
 	CLAMP16(L);
 	CLAMP16(R);
 
-	const float f16L = (const float)L;
-	const float f16R = (const float)R;
-
-	if (song.adlibused) // give some headroom for OPL output
-	{
-		*fOutL = f16L * ((2.0f/3.0f) / 32768.0f);
-		*fOutR = f16R * ((2.0f/3.0f) / 32768.0f);
-	}
-	else
-	{
-		*fOutL = f16L * (1.0f / 32768.0f);
-		*fOutR = f16R * (1.0f / 32768.0f);
-	}
+	*fOutL = (float)L * (1.0f / 32768.0f);
+	*fOutR = (float)R * (1.0f / 32768.0f);
 }
 
 static void GUS_Output(float *outL, float *outR)

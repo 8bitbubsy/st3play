@@ -383,7 +383,16 @@ void musmixer(int16_t *buffer, int32_t samples) // 8bb: not directly ported
 
 		// 8bb: mix AdLib (OPL2) voices
 		if (song.adlibused)
-			OPL2_MixSamples(fMixL, fMixR, samplesToMix);
+		{
+			// lower gain a little before mixing in OPL2 samples
+			for (uint32_t i = 0; i < samplesToMix; i++)
+			{
+				fMixL[i] *= 2.0f/3.0f;
+				fMixR[i] *= 2.0f/3.0f;
+			}
+
+			OPL2_RenderSamples(fMixL, fMixR, samplesToMix);
+		}
 
 		fMixL += samplesToMix;
 		fMixR += samplesToMix;

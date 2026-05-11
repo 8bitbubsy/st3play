@@ -126,19 +126,8 @@ static void outputSBProSample(float *fOutL, float *fOutR)
 	L &= 2047;
 	R &= 2047;
 
-	const float f8L = postTable[L];
-	const float f8R = postTable[R];
-
-	if (song.adlibused) // give some headroom for OPL output
-	{
-		*fOutL = f8L * ((2.0f/3.0f) / 128.0f);
-		*fOutR = f8R * ((2.0f/3.0f) / 128.0f);
-	}
-	else
-	{
-		*fOutL = f8L * (1.0f / 128.0f);
-		*fOutR = f8R * (1.0f / 128.0f);
-	}
+	*fOutL = postTable[L] * (1.0f / 128.0f);
+	*fOutR = postTable[R] * (1.0f / 128.0f);
 }
 
 static void SBPro_Output(float *outL, float *outR)

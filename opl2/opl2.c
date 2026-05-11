@@ -17,11 +17,11 @@
 #include <stdbool.h>
 #include <math.h>
 #include "opl2.h"
-#include "../dig.h" // CLAMP16(), etc.
+#include "../dig.h" // 8bb: CLAMP16(), etc.
 #include "../mixer/sinc.h"
 
-#define ISA_OSCPIN_CLK (157500000.0 / 11.0) /* exact nominal clock */
-#define OPL2_OUTPUT_RATE (ISA_OSCPIN_CLK / 288.0) /* ~49715.9090Hz */
+#define ISA_OSCPIN_CLK (157500000.0 / 11.0) /* 8bb: exact nominal clock */
+#define OPL2_OUTPUT_RATE (ISA_OSCPIN_CLK / 288.0) /* 8bb: ~49715.9090Hz */
 #define NUM_CHANNELS 9
 #define OPERATORS_PER_CHANNEL 2
 #define NUM_OPERATORS (NUM_CHANNELS*OPERATORS_PER_CHANNEL)
@@ -42,7 +42,7 @@ typedef struct rcFilter_t
 
 typedef struct Operator_t
 {
-	void *ParentChan; // Channel_t type
+	void *ParentChan; // 8bb: Channel_t type
 	bool KeyOn, KeyScaleRate, SustainMode, TremoloEnable, VibratoEnable;
 	int16_t EnvelopeLevel, Out[2];
 	const uint16_t *AttackTab, *DecayTab, *ReleaseTab;
@@ -534,7 +534,7 @@ void OPL2_Init(int32_t audioOutputFrequency)
 		audioOutputFrequency = 44100;
 
 	// 8bb: OPL DC-blocking high-pass filter
-	const double cutoffHz = 3.18309886184; // based on RC values from Sound Blaster 1.0 schematics
+	const double cutoffHz = 3.18309886184; // 8bb: based on RC values from Sound Blaster 1.0 schematics
 	filter.b1 = (float)exp((-2.0 * PI) * cutoffHz / OPL2_OUTPUT_RATE);
 	filter.a0 = 1.0f - filter.b1;
 	filter.lastSample = 0.0f;
@@ -567,10 +567,7 @@ void OPL2_Init(int32_t audioOutputFrequency)
 	// Initialize operator rates
 	Op = Operator;
 	for (int32_t i = 0; i < NUM_OPERATORS; i++, Op++)
-	{
-		Channel_t *OpCh = (Channel_t *)Op->ParentChan;
-		ComputeRates(OpCh, Op);
-	}
+		ComputeRates((Channel_t *)Op->ParentChan, Op);
 
 	dResampleRatio = (double)audioOutputFrequency / OPL2_OUTPUT_RATE;
 	dSincPhaseMul = SINC_OVERSAMPLING / dResampleRatio;
@@ -684,7 +681,7 @@ void OPL2_WritePort(uint16_t reg_num, uint8_t val)
 	}
 }
 
-static float outputOPL2Sample(void)
+static float OPL2_Output(void)
 {
 	while (dSampleAccum >= dResampleRatio)
 	{
@@ -696,20 +693,20 @@ static float outputOPL2Sample(void)
 		fSampleBuffer[SINC_TAPS-1] = OutputOPL2Sample();
 	}
 
-	const double dPhase = dSampleAccum * dSincPhaseMul; // 0.0 .. SINC_OVERSAMPLING-1
+	const double dPhase = dSampleAccum * dSincPhaseMul; // 8bb: 0.0 .. SINC_OVERSAMPLING-1
 	dSampleAccum += 1.0;
 
 	const int32_t lutPhase = (int32_t)dPhase;
 	const float fIntrpFrac = (float)(dPhase - lutPhase);
 
-	// it may look like we go out of bounds for fSinc_2, but we have an extra phase after LUT
+	// 8bb: it may look like we go out of bounds for fSinc_2, but we have an extra phase after LUT
 	const float *fSinc_1 = fSincLUT + ( lutPhase    << SINC_TAPS_BITS);
 	const float *fSinc_2 = fSincLUT + ((lutPhase+1) << SINC_TAPS_BITS);
 
 	float fSum = 0.0f;
 	for (int32_t i = 0; i < SINC_TAPS; i++)
 	{
-		// do linear interpolation between phases
+		// 8bb: do linear interpolation between phases
 		const float y1 = fSinc_1[i];
 		const float y2 = fSinc_2[i];
 		fSum += fSampleBuffer[i] * (y1 + ((y2 - y1) * fIntrpFrac));
@@ -718,11 +715,11 @@ static float outputOPL2Sample(void)
 	return fSum;
 }
 
-void OPL2_MixSamples(float *fMixBufL, float *fMixBufR, int32_t numSamples)
+void OPL2_RenderSamples(float *fMixBufL, float *fMixBufR, int32_t numSamples)
 {
 	for (int32_t i = 0; i < numSamples; i++)
 	{
-		const float sample = outputOPL2Sample();
+		const float sample = OPL2_Output();
 
 		fMixBufL[i] += sample;
 		fMixBufR[i] += sample;

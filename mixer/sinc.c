@@ -1,6 +1,6 @@
 #include "sinc.h"
 
-/* Pre-computed 16kB windowed-sinc table (has unity gain)
+/* Pre-computed 16kB windowed-sinc table (has unity gain).
 **
 ** Number of taps: 16
 ** Oversampling phases (aka. branches): 256
