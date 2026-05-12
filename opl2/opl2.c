@@ -692,11 +692,11 @@ static float OPL2_Output(void)
 		fSampleBuffer[SINC_TAPS-1] = OutputOPL2Sample();
 	}
 
-	const double dPhase = dSampleAccum * dSincPhaseMul; // 8bb: 0.0 .. SINC_OVERSAMPLING-1
+	const float fPhase = (float)(dSampleAccum * dSincPhaseMul); // 8bb: 0.0 .. SINC_OVERSAMPLING-1
 	dSampleAccum += 1.0;
 
-	const int32_t lutPhase = (int32_t)dPhase;
-	const float fIntrpFrac = (float)(dPhase - lutPhase);
+	const int32_t lutPhase = (int32_t)fPhase;
+	const float fIntrpFrac = fPhase - (float)lutPhase;
 
 	// 8bb: it may look like we go out of bounds for fSinc_2, but we have an extra phase after LUT
 	const float *fSinc_1 = fSincLUT + ( lutPhase    << SINC_TAPS_BITS);
