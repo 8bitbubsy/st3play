@@ -290,8 +290,7 @@ static int32_t renderToWav(void)
 		return 1;
 	}
 
-	strcpy(WAVRenderFilename, filename);
-	strcat(WAVRenderFilename, ".wav");
+	snprintf(WAVRenderFilename, filenameLen+5, "%s.wav", filename);
 
 	/* The WAV render loop also sets/listens/clears "WAVRender_Flag", but let's set it now
 	** since we're doing the render in a separate thread (to be able to force-abort it if
