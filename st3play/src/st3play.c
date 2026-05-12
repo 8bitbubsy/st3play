@@ -8,8 +8,6 @@
 #include "../../mixer/gus_gf1.h"
 #include "posix.h"
 
-#define CLAMP(x, low, high) (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
-
 // defaults when not overridden by argument switches
 #define DEFAULT_MIX_FREQ 48000
 #define DEFAULT_MIX_BUFSIZE 1024
