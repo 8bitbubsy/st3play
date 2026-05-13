@@ -567,7 +567,7 @@ void OPL2_Init(int32_t audioOutputFrequency)
 	for (int32_t i = 0; i < NUM_OPERATORS; i++, Op++)
 		ComputeRates((Channel_t *)Op->ParentChan, Op);
 
-	resamplingDelta = (uint64_t)round(RESAMPLING_FRAC_SCALE * ((double)OPL2_OUTPUT_RATE / audioOutputFrequency));
+	resamplingDelta = (uint64_t)round(RESAMPLING_FRAC_SCALE * (OPL2_OUTPUT_RATE / (double)audioOutputFrequency));
 	resamplingFrac = 0;
 }
 
