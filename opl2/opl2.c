@@ -10,7 +10,6 @@
 ** - Added some bugfixes from OpenMPT's custom Opal library (also BSD 3-Clause license)
 */
 
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
@@ -138,7 +137,7 @@ static const uint8_t levtab[128] = // 8bb: based on KSL table from ROM, but modi
 static bool NoteSel, TremoloDepth, VibratoDepth;
 static uint16_t Clock, TremoloClock, TremoloLevel, VibratoTick, VibratoClock;
 static float fSampleBuffer[SINC_TAPS];
-static double dResampleRatio, dSampleAccum, dSincPhaseMul;
+static uint64_t resamplingFrac, resamplingDelta;
 static Channel_t Channel[NUM_CHANNELS];
 static Operator_t Operator[NUM_OPERATORS];
 static rcFilter_t filter;
@@ -568,9 +567,8 @@ void OPL2_Init(int32_t audioOutputFrequency)
 	for (int32_t i = 0; i < NUM_OPERATORS; i++, Op++)
 		ComputeRates((Channel_t *)Op->ParentChan, Op);
 
-	dResampleRatio = (double)audioOutputFrequency / OPL2_OUTPUT_RATE;
-	dSincPhaseMul = SINC_OVERSAMPLING / dResampleRatio;
-	dSampleAccum = 0.0;
+	resamplingDelta = (uint64_t)round(RESAMPLING_FRAC_SCALE * ((double)OPL2_OUTPUT_RATE / audioOutputFrequency));
+	resamplingFrac = 0;
 }
 
 void OPL2_WritePort(uint16_t reg_num, uint8_t val)
@@ -682,9 +680,10 @@ void OPL2_WritePort(uint16_t reg_num, uint8_t val)
 
 static float OPL2_Output(void)
 {
-	while (dSampleAccum >= dResampleRatio)
+	resamplingFrac += resamplingDelta;
+	while (resamplingFrac >= RESAMPLING_FRAC_SCALE)
 	{
-		dSampleAccum -= dResampleRatio;
+		resamplingFrac -= RESAMPLING_FRAC_SCALE;
 
 		// 8bb: advance resampling ring buffer
 		for (int32_t i = 0; i < SINC_TAPS-1; i++)
@@ -692,11 +691,9 @@ static float OPL2_Output(void)
 		fSampleBuffer[SINC_TAPS-1] = OutputOPL2Sample();
 	}
 
-	const float fPhase = (float)(dSampleAccum * dSincPhaseMul); // 8bb: 0.0 .. SINC_OVERSAMPLING-1
-	dSampleAccum += 1.0;
-
-	const int32_t lutPhase = (int32_t)fPhase;
-	const float fIntrpFrac = fPhase - (float)lutPhase;
+	const uint32_t frac32 = (uint32_t)resamplingFrac;
+	const uint32_t lutPhase = frac32 >> INTRP_PHASE_SHIFT; // 8bb: 0 .. SINC_OVERSAMPLING-1
+	const float fIntrpFrac = (int32_t)(frac32 & INTRP_PHASE_MASK) * (1.0f / INTRP_PHASE_SCALE);
 
 	// 8bb: it may look like we go out of bounds for fSinc_2, but we have an extra phase after LUT
 	const float *fSinc_1 = fSincLUT + ( lutPhase    << SINC_TAPS_BITS);

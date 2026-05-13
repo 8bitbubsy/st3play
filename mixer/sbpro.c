@@ -1,9 +1,9 @@
 // channel mixer for Sound Blaster Pro mode
 
-#include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 #include "../dig.h"
 #include "sinc.h"
 
@@ -21,15 +21,15 @@ static const uint8_t xvol_st3[64+1] =
 };
 
 static int8_t postTable[2048];
+static uint64_t resamplingFrac, resamplingDelta;
 static float fSampleBufferL[SINC_TAPS], fSampleBufferR[SINC_TAPS];
-static double dResampleRatio, dSampleAccum, dSincPhaseMul, dSBProOutputRate;
+static double dSBProOutputRate;
 
 void SBPro_Init(int32_t audioOutputFrequency, uint8_t timeConstant)
 {
 	dSBProOutputRate = 1000000.0 / (256 - timeConstant);
-	dResampleRatio = (double)audioOutputFrequency / dSBProOutputRate;
-	dSincPhaseMul = SINC_OVERSAMPLING / dResampleRatio;
-	dSampleAccum = 0.0;
+	resamplingDelta = (uint64_t)round(RESAMPLING_FRAC_SCALE * (dSBProOutputRate / audioOutputFrequency));
+	resamplingFrac = 0;
 
 	// create post table (aka. "squeeze volume table")
 
@@ -132,9 +132,10 @@ static void outputSBProSample(float *fOutL, float *fOutR)
 
 static void SBPro_Output(float *outL, float *outR)
 {
-	while (dSampleAccum >= dResampleRatio)
+	resamplingFrac += resamplingDelta;
+	while (resamplingFrac >= RESAMPLING_FRAC_SCALE)
 	{
-		dSampleAccum -= dResampleRatio;
+		resamplingFrac -= RESAMPLING_FRAC_SCALE;
 
 		// advance resampling ring buffer
 		for (int32_t i = 0; i < SINC_TAPS-1; i++)
@@ -150,11 +151,9 @@ static void SBPro_Output(float *outL, float *outR)
 		fSampleBufferR[SINC_TAPS-1] = inR;
 	}
 
-	const float fPhase = (float)(dSampleAccum * dSincPhaseMul); // 0.0 .. SINC_OVERSAMPLING-1
-	dSampleAccum += 1.0;
-
-	const int32_t lutPhase = (int32_t)fPhase;
-	const float fIntrpFrac = fPhase - (float)lutPhase;
+	const uint32_t frac32 = (uint32_t)resamplingFrac;
+	const uint32_t lutPhase = frac32 >> INTRP_PHASE_SHIFT; // 0 .. SINC_OVERSAMPLING-1
+	const float fIntrpFrac = (int32_t)(frac32 & INTRP_PHASE_MASK) * (1.0f / INTRP_PHASE_SCALE);
 
 	// it may look like we go out of bounds for fSinc_2, but we have an extra phase after LUT
 	const float *fSinc_1 = fSincLUT + ( lutPhase    << SINC_TAPS_BITS);
