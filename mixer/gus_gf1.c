@@ -18,7 +18,7 @@
 #include <string.h>
 #include <math.h>
 #include "gus_gf1.h"
-#include "../dig.h" // CLAMP16(), etc.
+#include "../dig.h" // CLAMP(), etc.
 #include "../digread.h"
 #include "sinc.h"
 

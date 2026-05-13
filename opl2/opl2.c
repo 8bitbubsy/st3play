@@ -16,7 +16,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include "opl2.h"
-#include "../dig.h" // 8bb: CLAMP16(), etc.
+#include "../dig.h" // 8bb: CLAMP(), etc.
 #include "../mixer/sinc.h"
 
 #define ISA_OSCPIN_CLK (157500000.0 / 11.0) /* 8bb: exact nominal clock */
