@@ -116,9 +116,14 @@ static void outputSBProSample(float *fOutL, float *fOutR)
 		if (ch->m_pos >= ch->m_end)
 		{
 			if ((uint16_t)ch->m_loop != 65535) // loop enabled?
+			{
+				// ST3 does it like this. Safe because of loop unrolling in loader.
 				ch->m_pos += (int16_t)(ch->m_loop - ch->m_end);
+			}
 			else // no loop
+			{
 				ch->m_speed = 0; // stop sample
+			}
 		}
 	}
 
